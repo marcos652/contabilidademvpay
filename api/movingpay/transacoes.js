@@ -86,7 +86,7 @@ const buildRefreshUrl = () => {
   return url.toString();
 };
 
-const refreshToken = async () => {
+const refreshToken = async (customer) => {
   if (!canRefresh()) {
     return '';
   }
@@ -96,6 +96,9 @@ const refreshToken = async () => {
   };
   if (cachedToken) {
     headers.Authorization = `Bearer ${cachedToken}`;
+  }
+  if (customer) {
+    headers.customer = String(customer);
   }
 
   const response = await fetch(buildRefreshUrl(), {
@@ -116,9 +119,9 @@ const refreshToken = async () => {
   return nextToken;
 };
 
-const ensureToken = async () => {
+const ensureToken = async (customer) => {
   if (FORCE_REFRESH_EVERY_REQUEST && canRefresh()) {
-    const refreshed = await refreshToken();
+    const refreshed = await refreshToken(customer);
     if (refreshed) {
       return refreshed;
     }
@@ -129,7 +132,7 @@ const ensureToken = async () => {
   }
 
   if (canRefresh()) {
-    const refreshed = await refreshToken();
+    const refreshed = await refreshToken(customer);
     if (refreshed) {
       return refreshed;
     }
@@ -163,7 +166,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    const token = await ensureToken();
+    const customer = req.headers.customer;
+    const token = await ensureToken(customer);
     if (!token) {
       return res.status(500).json({
         message: 'Token da MovingPay nao configurado no backend.',
@@ -178,7 +182,6 @@ export default async function handler(req, res) {
       Authorization: `Bearer ${token}`,
     };
 
-    const customer = req.headers.customer;
     if (customer) {
       headers.customer = String(customer);
     }
@@ -186,7 +189,7 @@ export default async function handler(req, res) {
     let upstreamResponse = await fetch(upstreamUrl.toString(), { headers });
 
     if (upstreamResponse.status === 401 && canRefresh()) {
-      const refreshed = await refreshToken();
+      const refreshed = await refreshToken(customer);
       if (refreshed) {
         headers.Authorization = `Bearer ${refreshed}`;
         upstreamResponse = await fetch(upstreamUrl.toString(), { headers });
