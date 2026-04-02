@@ -13,6 +13,7 @@ function DashboardPage() {
     summary,
     dailySeries,
     reportRows,
+    requestLogs,
     progress,
     loading,
     error,
@@ -110,39 +111,88 @@ function DashboardPage() {
             <span className="console-badge">{isBatchMode ? 'Relatorio em lote' : 'Modo resumo'}</span>
           </div>
           {isBatchMode ? (
-            <div className="report-table-wrap">
-              <table className="report-table">
-                <thead>
-                  <tr>
-                    <th>Clientes</th>
-                    <th>N Cliente</th>
-                    <th>Transacoes</th>
-                    <th>Valores</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {reportRows.map((row) => (
-                    <tr key={row.id}>
-                      <td>{row.name}</td>
-                      <td>{row.id}</td>
-                      <td>{row.transactions}</td>
-                      <td>
-                        {new Intl.NumberFormat('pt-BR', {
-                          style: 'currency',
-                          currency: 'BRL',
-                        }).format(Number(row.amount || 0))}
-                      </td>
-                      <td>{row.status === 'ok' ? 'OK' : row.status}</td>
+            <>
+              <div className="report-table-wrap">
+                <table className="report-table">
+                  <thead>
+                    <tr>
+                      <th>Clientes</th>
+                      <th>N Cliente</th>
+                      <th>Transacoes</th>
+                      <th>Valores</th>
+                      <th>Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {reportRows.map((row) => (
+                      <tr key={row.id}>
+                        <td>{row.name}</td>
+                        <td>{row.id}</td>
+                        <td>{row.transactions}</td>
+                        <td>
+                          {new Intl.NumberFormat('pt-BR', {
+                            style: 'currency',
+                            currency: 'BRL',
+                          }).format(Number(row.amount || 0))}
+                        </td>
+                        <td>{row.status === 'ok' ? 'OK' : row.status}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {requestLogs.length > 0 && (
+                <div className="report-table-wrap">
+                  <table className="report-table">
+                    <thead>
+                      <tr>
+                        <th>Hora</th>
+                        <th>Rota</th>
+                        <th>Status</th>
+                        <th>Customer</th>
+                        <th>Token</th>
+                        <th>/acessar</th>
+                        <th>Msg acesso</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {requestLogs.map((log, index) => (
+                        <tr key={`${log.at}-${index}`}>
+                          <td>{new Date(log.at).toLocaleTimeString('pt-BR')}</td>
+                          <td>{log.route}</td>
+                          <td>{log.httpStatus}</td>
+                          <td>{log.customerHeader || '-'}</td>
+                          <td>{log.tokenSource || '-'}</td>
+                          <td>{log.accessAttempted || '-'}</td>
+                          <td>{log.accessMessage || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </>
           ) : (
-            <p className="console-log">
-              Dados carregados. Neste modo de consulta (`opcoes=resumo`), a API retorna apenas resumo e nao a serie por dia.
-            </p>
+            <>
+              <p className="console-log">
+                Dados carregados. Neste modo de consulta (`opcoes=resumo`), a API retorna apenas resumo e nao a serie por dia.
+              </p>
+              {requestLogs[0] && (
+                <div className="console-log call-log">
+                  <strong>Chamada:</strong> {requestLogs[0].route}
+                  <br />
+                  <strong>Status:</strong> {requestLogs[0].httpStatus} | <strong>Customer:</strong>{' '}
+                  {requestLogs[0].customerHeader || '-'} | <strong>Token:</strong> {requestLogs[0].tokenSource || '-'} |
+                  <strong> /acessar:</strong> {requestLogs[0].accessAttempted || '-'}
+                  {requestLogs[0].accessMessage ? (
+                    <>
+                      <br />
+                      <strong>Mensagem acesso:</strong> {requestLogs[0].accessMessage}
+                    </>
+                  ) : null}
+                </div>
+              )}
+            </>
           )}
         </section>
       )}

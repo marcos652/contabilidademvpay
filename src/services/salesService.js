@@ -1,6 +1,18 @@
 import apiClient from './apiClient';
 
 const ONLY_APPROVED = true;
+const toQueryString = (params) => {
+  const search = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null) return;
+    if (Array.isArray(value)) {
+      value.forEach((item) => search.append(key, String(item)));
+      return;
+    }
+    search.append(key, String(value));
+  });
+  return search.toString();
+};
 
 const pad = (value) => String(value).padStart(2, '0');
 
@@ -290,13 +302,36 @@ async function fetchSalesPayload(
   signal,
 ) {
   const customer = normalizeCustomerHeader(customerHeader, codigoUnidadeNegocios);
+  const params = buildParams(startDate, endDate, 1, codigoUnidadeNegocios);
   const response = await apiClient.get('/transacoes', {
-    params: buildParams(startDate, endDate, 1, codigoUnidadeNegocios),
+    params,
     headers: customer ? { customer } : undefined,
     signal,
   });
 
-  return response?.data;
+  const headers = response?.headers || {};
+  const accessMessageEncoded = headers['x-movingpay-access-message'] || '';
+  let accessMessage = accessMessageEncoded;
+  try {
+    accessMessage = decodeURIComponent(accessMessageEncoded);
+  } catch {
+    accessMessage = accessMessageEncoded;
+  }
+
+  return {
+    payload: response?.data,
+    requestTrace: {
+      route: `/api/movingpay/transacoes?${toQueryString(params)}`,
+      httpStatus: response?.status || 0,
+      customerHeader: customer || '',
+      tokenSource: headers['x-movingpay-token-source'] || '',
+      accessAttempted: headers['x-movingpay-access-attempted'] || '',
+      canRefresh: headers['x-movingpay-can-refresh'] || '',
+      accessStatus: headers['x-movingpay-access-status'] || '',
+      accessMessage: accessMessage || '',
+      at: new Date().toISOString(),
+    },
+  };
 }
 
 export async function getSalesSummary({
@@ -313,13 +348,14 @@ export async function getSalesSummary({
       );
     }
 
-    const payload = await fetchSalesPayload(
+    const result = await fetchSalesPayload(
       startDate,
       endDate,
       codigoUnidadeNegocios,
       customerHeader,
       signal,
     );
+    const payload = result.payload;
     const summaryFromContador = buildSummaryFromContador(payload?.contador);
 
     if (summaryFromContador) {
@@ -328,6 +364,7 @@ export async function getSalesSummary({
         dailySeries: [],
         counterBreakdown: buildCounterBreakdown(payload?.contador),
         source: 'api',
+        requestTrace: result.requestTrace,
       };
     }
 
@@ -342,6 +379,7 @@ export async function getSalesSummary({
       dailySeries,
       counterBreakdown: [],
       source: 'api',
+      requestTrace: result.requestTrace,
     };
   } catch (error) {
     if (error?.code === 'ERR_CANCELED' || error?.name === 'CanceledError') {

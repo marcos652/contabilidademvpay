@@ -18,6 +18,7 @@ export default function useSalesData() {
   const [dailySeries, setDailySeries] = useState([]);
   const [counterBreakdown, setCounterBreakdown] = useState([]);
   const [reportRows, setReportRows] = useState([]);
+  const [requestLogs, setRequestLogs] = useState([]);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,6 +34,7 @@ export default function useSalesData() {
     setSource(result.source);
     setReportRows([]);
     setProgress({ done: 0, total: 0 });
+    setRequestLogs(result.requestTrace ? [result.requestTrace] : []);
   }, []);
 
   const fetchBatchSubacquirers = useCallback(async (nextRange, customerIds, signal) => {
@@ -48,6 +50,7 @@ export default function useSalesData() {
     setDailySeries([]);
     setCounterBreakdown([]);
     setReportRows([]);
+    setRequestLogs([]);
     setProgress({ done: 0, total });
 
     const groups = chunkArray(ids, BATCH_SIZE);
@@ -85,6 +88,9 @@ export default function useSalesData() {
                   : 'ok',
             },
           ]);
+          if (result.requestTrace) {
+            setRequestLogs((prev) => [...prev, result.requestTrace]);
+          }
         } catch (err) {
           if (signal?.aborted || err?.message === 'Consulta cancelada pelo usuario.') {
             throw err;
@@ -159,6 +165,7 @@ export default function useSalesData() {
     dailySeries,
     counterBreakdown,
     reportRows,
+    requestLogs,
     progress,
     loading,
     error,
