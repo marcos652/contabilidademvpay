@@ -141,6 +141,9 @@ export default function useSalesData() {
         await fetchSingle(nextRange, controller.signal);
       }
     } catch (err) {
+      if (err?.requestTrace) {
+        setRequestLogs((prev) => [...prev, err.requestTrace]);
+      }
       if (controller.signal.aborted) {
         setError('Consulta cancelada pelo usuario.');
       } else {

@@ -5,12 +5,26 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '');
   const proxyTarget = env.MOVINGPAY_API_BASE_URL || env.VITE_MOVINGPAY_API_BASE_URL;
   const proxyToken = env.MOVINGPAY_API_TOKEN || env.VITE_MOVINGPAY_API_TOKEN;
+  const authEmail = env.MOVINGPAY_AUTH_EMAIL || env.VITE_MOVINGPAY_AUTH_EMAIL || '';
+  const authPassword = env.MOVINGPAY_AUTH_PASSWORD || env.VITE_MOVINGPAY_AUTH_PASSWORD || '';
 
   return {
     plugins: [react()],
     server: {
       port: 5173,
       proxy: {
+        '/api/movingpay/acessar': {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: false,
+          rewrite: () =>
+            `/api/v3/acessar?email=${encodeURIComponent(authEmail)}&password=${encodeURIComponent(authPassword)}`,
+          headers: proxyToken
+            ? {
+                Authorization: `Bearer ${proxyToken}`,
+              }
+            : undefined,
+        },
         '/api/movingpay': {
           target: proxyTarget,
           changeOrigin: true,

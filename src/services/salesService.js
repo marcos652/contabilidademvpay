@@ -14,6 +14,33 @@ const toQueryString = (params) => {
   return search.toString();
 };
 
+const buildRequestTraceFromResponse = (response, params, customer) => {
+  const headers = response?.headers || {};
+  const accessMessageEncoded = headers['x-movingpay-access-message'] || '';
+  let accessMessage = accessMessageEncoded;
+  try {
+    accessMessage = decodeURIComponent(accessMessageEncoded);
+  } catch {
+    accessMessage = accessMessageEncoded;
+  }
+
+  const payload = response?.data || {};
+  const debugPayload = payload?.__debug || payload?.debug || {};
+
+  return {
+    route: `/api/movingpay/transacoes?${toQueryString(params)}`,
+    httpStatus: response?.status || 0,
+    customerHeader: customer || '',
+    tokenSource: headers['x-movingpay-token-source'] || debugPayload.tokenSource || '',
+    accessAttempted: headers['x-movingpay-access-attempted'] || debugPayload.accessAttempted || '',
+    canRefresh: headers['x-movingpay-can-refresh'] || debugPayload.canRefresh || '',
+    accessStatus: headers['x-movingpay-access-status'] || debugPayload.accessStatus || '',
+    accessMessage: accessMessage || debugPayload.accessMessage || '',
+    generatedToken: headers['x-movingpay-generated-token'] || debugPayload.generatedToken || '',
+    at: new Date().toISOString(),
+  };
+};
+
 const pad = (value) => String(value).padStart(2, '0');
 
 const toDateKey = (date) => {
@@ -303,34 +330,38 @@ async function fetchSalesPayload(
 ) {
   const customer = normalizeCustomerHeader(customerHeader, codigoUnidadeNegocios);
   const params = buildParams(startDate, endDate, 1, codigoUnidadeNegocios);
+
+  let accessResponse = null;
+  try {
+    accessResponse = await apiClient.post(
+      '/acessar',
+      {},
+      {
+        headers: customer ? { customer } : undefined,
+        signal,
+      },
+    );
+  } catch (error) {
+    accessResponse = error?.response || null;
+  }
+
   const response = await apiClient.get('/transacoes', {
     params,
     headers: customer ? { customer } : undefined,
     signal,
   });
 
-  const headers = response?.headers || {};
-  const accessMessageEncoded = headers['x-movingpay-access-message'] || '';
-  let accessMessage = accessMessageEncoded;
-  try {
-    accessMessage = decodeURIComponent(accessMessageEncoded);
-  } catch {
-    accessMessage = accessMessageEncoded;
+  const requestTrace = buildRequestTraceFromResponse(response, params, customer);
+  if (accessResponse) {
+    requestTrace.accessRoute = '/api/movingpay/acessar';
+    requestTrace.accessHttpStatus = accessResponse?.status || 0;
+    requestTrace.generatedToken =
+      accessResponse?.data?.token || requestTrace.generatedToken || accessResponse?.data?.payload?.token || '';
   }
 
   return {
     payload: response?.data,
-    requestTrace: {
-      route: `/api/movingpay/transacoes?${toQueryString(params)}`,
-      httpStatus: response?.status || 0,
-      customerHeader: customer || '',
-      tokenSource: headers['x-movingpay-token-source'] || '',
-      accessAttempted: headers['x-movingpay-access-attempted'] || '',
-      canRefresh: headers['x-movingpay-can-refresh'] || '',
-      accessStatus: headers['x-movingpay-access-status'] || '',
-      accessMessage: accessMessage || '',
-      at: new Date().toISOString(),
-    },
+    requestTrace,
   };
 }
 
@@ -388,22 +419,35 @@ export async function getSalesSummary({
 
     const statusCode = error.response?.status;
     const apiMessage = error.response?.data?.message || error.response?.data?.mensagem;
+    const requestTrace = error.response
+      ? buildRequestTraceFromResponse(
+          error.response,
+          buildParams(startDate, endDate, 1, codigoUnidadeNegocios),
+          normalizeCustomerHeader(customerHeader, codigoUnidadeNegocios),
+        )
+      : null;
 
     if (statusCode === 498 && apiMessage === 'CUSTOMER_ACCOUNT_MULTIPLE') {
-      throw new Error(
+      const nextError = new Error(
         'API retornou 498 (CUSTOMER_ACCOUNT_MULTIPLE). O token atual nao possui acesso/escopo para as contas da subadquirente selecionadas. Gere um novo token com esse escopo e tente novamente.',
       );
+      nextError.requestTrace = requestTrace;
+      throw nextError;
     }
     if (statusCode === 498 && apiMessage === 'account access deniedy') {
-      throw new Error(
+      const nextError = new Error(
         'API retornou 498 (account access denied). O token atual nao tem acesso a essa unidade/conta. Use codigoUnidadeNegocios permitido para seu usuario ou solicite liberacao no MovingPay.',
       );
+      nextError.requestTrace = requestTrace;
+      throw nextError;
     }
 
-    throw new Error(
+    const nextError = new Error(
       apiMessage ||
         error.response?.data?.erro ||
         'Nao foi possivel carregar os dados da API MovingPay.',
     );
+    nextError.requestTrace = requestTrace;
+    throw nextError;
   }
 }

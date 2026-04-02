@@ -224,6 +224,9 @@ export default async function handler(req, res) {
     res.setHeader('x-movingpay-token-source', authResult.source || 'none');
     res.setHeader('x-movingpay-access-attempted', authResult.accessAttempted ? 'true' : 'false');
     res.setHeader('x-movingpay-can-refresh', canRefresh() ? 'true' : 'false');
+    if (token) {
+      res.setHeader('x-movingpay-generated-token', token);
+    }
     if (authResult.refreshStatus) {
       res.setHeader('x-movingpay-access-status', String(authResult.refreshStatus));
     }
@@ -237,6 +240,13 @@ export default async function handler(req, res) {
         hint: 'Verifique MOVINGPAY_AUTH_EMAIL/MOVINGPAY_AUTH_PASSWORD e se o endpoint /acessar retorna token valido.',
         accessStatus: authResult.refreshStatus || null,
         accessMessage: authResult.refreshMessage || null,
+        __debug: {
+          accessAttempted: authResult.accessAttempted ? 'true' : 'false',
+          canRefresh: canRefresh() ? 'true' : 'false',
+          tokenSource: authResult.source || 'none',
+          generatedToken: '',
+          usedToken: '',
+        },
       });
     }
 
@@ -268,6 +278,16 @@ export default async function handler(req, res) {
     } catch {
       payload = { message: body || 'Resposta invalida da MovingPay.' };
     }
+
+    payload.__debug = {
+      accessAttempted: authResult.accessAttempted ? 'true' : 'false',
+      canRefresh: canRefresh() ? 'true' : 'false',
+      accessStatus: authResult.refreshStatus || '',
+      accessMessage: authResult.refreshMessage || '',
+      tokenSource: authResult.source || 'none',
+      generatedToken: authResult.source === 'access' ? token : '',
+      usedToken: token || '',
+    };
 
     return res.status(upstreamResponse.status).json(payload);
   } catch (error) {

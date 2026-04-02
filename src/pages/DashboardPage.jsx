@@ -40,6 +40,9 @@ function DashboardPage() {
     : isSpecificUnit
     ? `Sub ${selectedCustomerHeader} - ${selectedSub?.name || 'NOME NAO MAPEADO'}`
     : 'Todas as subs';
+  const latestRequest = [...requestLogs].reverse()[0] || null;
+  const latestGeneratedToken =
+    [...requestLogs].reverse().find((log) => String(log.generatedToken || '').trim())?.generatedToken || '';
 
   const handleExport = () => {
     exportSalesExcel({
@@ -100,6 +103,22 @@ function DashboardPage() {
           Exportar Excel
         </button>
       </div>
+      {hasSearched && (
+        <section className="console-panel fade-up">
+          <div className="console-panel__header">
+            <h3>Token Gerado</h3>
+            <span className="console-badge">/acessar</span>
+          </div>
+          <p className="console-log call-log">{latestGeneratedToken || 'Nenhum token novo retornado ainda.'}</p>
+          {latestRequest && (
+            <p className="console-log call-log">
+              Acessar chamado: {latestRequest.accessAttempted || '-'} | Pode renovar: {latestRequest.canRefresh || '-'}{' '}
+              | Fonte token: {latestRequest.tokenSource || '-'} | Status acesso: {latestRequest.accessStatus || '-'}
+              {latestRequest.accessMessage ? ` | Msg: ${latestRequest.accessMessage}` : ''}
+            </p>
+          )}
+        </section>
+      )}
 
       {loading && <LoadingState />}
       {!loading && hasSearched && error && <ErrorState message={error} onRetry={reload} />}
@@ -141,36 +160,6 @@ function DashboardPage() {
                   </tbody>
                 </table>
               </div>
-              {requestLogs.length > 0 && (
-                <div className="report-table-wrap">
-                  <table className="report-table">
-                    <thead>
-                      <tr>
-                        <th>Hora</th>
-                        <th>Rota</th>
-                        <th>Status</th>
-                        <th>Customer</th>
-                        <th>Token</th>
-                        <th>/acessar</th>
-                        <th>Msg acesso</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {requestLogs.map((log, index) => (
-                        <tr key={`${log.at}-${index}`}>
-                          <td>{new Date(log.at).toLocaleTimeString('pt-BR')}</td>
-                          <td>{log.route}</td>
-                          <td>{log.httpStatus}</td>
-                          <td>{log.customerHeader || '-'}</td>
-                          <td>{log.tokenSource || '-'}</td>
-                          <td>{log.accessAttempted || '-'}</td>
-                          <td>{log.accessMessage || '-'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
             </>
           ) : (
             <>
@@ -184,6 +173,8 @@ function DashboardPage() {
                   <strong>Status:</strong> {requestLogs[0].httpStatus} | <strong>Customer:</strong>{' '}
                   {requestLogs[0].customerHeader || '-'} | <strong>Token:</strong> {requestLogs[0].tokenSource || '-'} |
                   <strong> /acessar:</strong> {requestLogs[0].accessAttempted || '-'}
+                  <br />
+                  <strong>Token novo:</strong> {requestLogs[0].generatedToken || '-'}
                   {requestLogs[0].accessMessage ? (
                     <>
                       <br />
