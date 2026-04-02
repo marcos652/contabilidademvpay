@@ -1,11 +1,23 @@
-const MOVINGPAY_BASE_URL = process.env.MOVINGPAY_API_BASE_URL || 'https://api.movingpay.com.br';
-const MOVINGPAY_ACCESS_PATH = process.env.MOVINGPAY_ACCESS_PATH || '/api/v3/acessar';
-const MOVINGPAY_ACCESS_METHOD = String(process.env.MOVINGPAY_ACCESS_METHOD || 'POST')
+const MOVINGPAY_BASE_URL =
+  process.env.MOVINGPAY_API_BASE_URL ||
+  process.env.VITE_MOVINGPAY_API_BASE_URL ||
+  'https://api.movingpay.com.br';
+const MOVINGPAY_ACCESS_PATH =
+  process.env.MOVINGPAY_ACCESS_PATH || process.env.VITE_MOVINGPAY_ACCESS_PATH || '/api/v3/acessar';
+const MOVINGPAY_ACCESS_METHOD = String(
+  process.env.MOVINGPAY_ACCESS_METHOD || process.env.VITE_MOVINGPAY_ACCESS_METHOD || 'POST',
+)
   .trim()
   .toUpperCase();
-const MOVINGPAY_AUTH_EMAIL = String(process.env.MOVINGPAY_AUTH_EMAIL || '').trim();
-const MOVINGPAY_AUTH_PASSWORD = String(process.env.MOVINGPAY_AUTH_PASSWORD || '').trim();
-const MOVINGPAY_STATIC_TOKEN = String(process.env.MOVINGPAY_API_TOKEN || '').trim();
+const MOVINGPAY_AUTH_EMAIL = String(
+  process.env.MOVINGPAY_AUTH_EMAIL || process.env.VITE_MOVINGPAY_AUTH_EMAIL || '',
+).trim();
+const MOVINGPAY_AUTH_PASSWORD = String(
+  process.env.MOVINGPAY_AUTH_PASSWORD || process.env.VITE_MOVINGPAY_AUTH_PASSWORD || '',
+).trim();
+const MOVINGPAY_STATIC_TOKEN = String(
+  process.env.MOVINGPAY_API_TOKEN || process.env.VITE_MOVINGPAY_API_TOKEN || '',
+).trim();
 
 let cachedToken = MOVINGPAY_STATIC_TOKEN;
 let cachedTokenExpiryMs = 0;
@@ -145,6 +157,7 @@ export default async function handler(req, res) {
     if (!token) {
       return res.status(500).json({
         message: 'Token da MovingPay nao configurado no backend.',
+        hint: 'Configure MOVINGPAY_API_TOKEN ou MOVINGPAY_AUTH_EMAIL/MOVINGPAY_AUTH_PASSWORD na Vercel.',
       });
     }
 
@@ -186,4 +199,3 @@ export default async function handler(req, res) {
     });
   }
 }
-
