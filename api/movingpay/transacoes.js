@@ -41,7 +41,7 @@ const MOVINGPAY_STATIC_TOKEN = readEnv(
 let cachedToken = MOVINGPAY_STATIC_TOKEN;
 let cachedTokenExpiryMs = 0;
 const FORCE_REFRESH_EVERY_REQUEST = true;
-const REQUIRE_ACCESS_REFRESH = String(process.env.MOVINGPAY_REQUIRE_ACCESS_REFRESH || 'false') === 'true';
+const REQUIRE_ACCESS_REFRESH = String(process.env.MOVINGPAY_REQUIRE_ACCESS_REFRESH || 'true') === 'true';
 
 const pickText = (object, fields) => {
   for (const field of fields) {
@@ -163,6 +163,14 @@ const ensureToken = async (customer) => {
       source = 'access';
       return { token: refreshed.token, source, refreshStatus, refreshMessage, accessAttempted };
     }
+    if (REQUIRE_ACCESS_REFRESH) {
+      return { token: '', source, refreshStatus, refreshMessage, accessAttempted };
+    }
+  }
+
+  if (REQUIRE_ACCESS_REFRESH && !canRefresh()) {
+    refreshMessage = 'Credenciais de acesso ausentes no ambiente.';
+    return { token: '', source, refreshStatus, refreshMessage, accessAttempted };
   }
 
   if (hasValidCachedToken()) {
