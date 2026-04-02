@@ -1,23 +1,42 @@
-const MOVINGPAY_BASE_URL =
-  process.env.MOVINGPAY_API_BASE_URL ||
-  process.env.VITE_MOVINGPAY_API_BASE_URL ||
-  'https://api.movingpay.com.br';
-const MOVINGPAY_ACCESS_PATH =
-  process.env.MOVINGPAY_ACCESS_PATH || process.env.VITE_MOVINGPAY_ACCESS_PATH || '/api/v3/acessar';
-const MOVINGPAY_ACCESS_METHOD = String(
-  process.env.MOVINGPAY_ACCESS_METHOD || process.env.VITE_MOVINGPAY_ACCESS_METHOD || 'POST',
-)
-  .trim()
-  .toUpperCase();
-const MOVINGPAY_AUTH_EMAIL = String(
-  process.env.MOVINGPAY_AUTH_EMAIL || process.env.VITE_MOVINGPAY_AUTH_EMAIL || '',
-).trim();
-const MOVINGPAY_AUTH_PASSWORD = String(
-  process.env.MOVINGPAY_AUTH_PASSWORD || process.env.VITE_MOVINGPAY_AUTH_PASSWORD || '',
-).trim();
-const MOVINGPAY_STATIC_TOKEN = String(
-  process.env.MOVINGPAY_API_TOKEN || process.env.VITE_MOVINGPAY_API_TOKEN || '',
-).trim();
+const readEnv = (keys, fallback = '') => {
+  for (const key of keys) {
+    const value = process.env[key];
+    if (value !== undefined && value !== null && String(value).trim() !== '') {
+      return String(value).trim();
+    }
+  }
+  return fallback;
+};
+
+const MOVINGPAY_BASE_URL = readEnv(
+  ['MOVINGPAY_API_BASE_URL', 'URL_BASE_API_MOVINGPAY', 'URL_base_da_API_VITE_MOVINGPAY', 'VITE_MOVINGPAY_API_BASE_URL'],
+  'https://api.movingpay.com.br',
+);
+
+const MOVINGPAY_ACCESS_PATH = readEnv(
+  ['MOVINGPAY_ACCESS_PATH', 'VITE_MOVINGPAY_ACCESS_PATH'],
+  '/api/v3/acessar',
+);
+
+const MOVINGPAY_ACCESS_METHOD = readEnv(
+  ['MOVINGPAY_ACCESS_METHOD', 'METODO_DE_ACESSO_MOVINGPAY', 'MÉTODO_DE_ACESSO_MOVINGPAY', 'VITE_MOVINGPAY_ACCESS_METHOD'],
+  'POST',
+).toUpperCase();
+
+const MOVINGPAY_AUTH_EMAIL = readEnv(
+  ['MOVINGPAY_AUTH_EMAIL', 'EMAIL_DE_AUTENTICACAO_MOVINGPAY', 'EMAIL_DE_AUTENTICAÇÃO_MOVINGPAY', 'VITE_MOVINGPAY_AUTH_EMAIL'],
+  '',
+);
+
+const MOVINGPAY_AUTH_PASSWORD = readEnv(
+  ['MOVINGPAY_AUTH_PASSWORD', 'SENHA_DE_AUTENTICACAO_MOVINGPAY', 'SENHA_DE_AUTENTICAÇÃO_MOVINGPAY', 'VITE_MOVINGPAY_AUTH_PASSWORD'],
+  '',
+);
+
+const MOVINGPAY_STATIC_TOKEN = readEnv(
+  ['MOVINGPAY_API_TOKEN', 'VITE_MOVINGPAY_API_TOKEN'],
+  '',
+);
 
 let cachedToken = MOVINGPAY_STATIC_TOKEN;
 let cachedTokenExpiryMs = 0;
