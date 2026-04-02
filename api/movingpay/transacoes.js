@@ -21,6 +21,7 @@ const MOVINGPAY_STATIC_TOKEN = String(
 
 let cachedToken = MOVINGPAY_STATIC_TOKEN;
 let cachedTokenExpiryMs = 0;
+const FORCE_REFRESH_EVERY_REQUEST = true;
 
 const pickText = (object, fields) => {
   for (const field of fields) {
@@ -116,13 +117,22 @@ const refreshToken = async () => {
 };
 
 const ensureToken = async () => {
+  if (FORCE_REFRESH_EVERY_REQUEST && canRefresh()) {
+    const refreshed = await refreshToken();
+    if (refreshed) {
+      return refreshed;
+    }
+  }
+
   if (hasValidCachedToken()) {
     return cachedToken;
   }
 
-  const refreshed = await refreshToken();
-  if (refreshed) {
-    return refreshed;
+  if (canRefresh()) {
+    const refreshed = await refreshToken();
+    if (refreshed) {
+      return refreshed;
+    }
   }
 
   if (MOVINGPAY_STATIC_TOKEN) {
