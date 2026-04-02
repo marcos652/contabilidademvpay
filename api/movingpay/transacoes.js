@@ -1,0 +1,189 @@
+const MOVINGPAY_BASE_URL = process.env.MOVINGPAY_API_BASE_URL || 'https://api.movingpay.com.br';
+const MOVINGPAY_ACCESS_PATH = process.env.MOVINGPAY_ACCESS_PATH || '/api/v3/acessar';
+const MOVINGPAY_ACCESS_METHOD = String(process.env.MOVINGPAY_ACCESS_METHOD || 'POST')
+  .trim()
+  .toUpperCase();
+const MOVINGPAY_AUTH_EMAIL = String(process.env.MOVINGPAY_AUTH_EMAIL || '').trim();
+const MOVINGPAY_AUTH_PASSWORD = String(process.env.MOVINGPAY_AUTH_PASSWORD || '').trim();
+const MOVINGPAY_STATIC_TOKEN = String(process.env.MOVINGPAY_API_TOKEN || '').trim();
+
+let cachedToken = MOVINGPAY_STATIC_TOKEN;
+let cachedTokenExpiryMs = 0;
+
+const pickText = (object, fields) => {
+  for (const field of fields) {
+    if (object?.[field] !== undefined && object?.[field] !== null && object?.[field] !== '') {
+      return String(object[field]);
+    }
+  }
+  return '';
+};
+
+const resolveAuthToken = (payload) => {
+  const directToken =
+    pickText(payload, ['token', 'access_token', 'jwt']) ||
+    pickText(payload?.data, ['token', 'access_token', 'jwt']) ||
+    pickText(payload?.result, ['token', 'access_token', 'jwt']) ||
+    pickText(payload?.auth, ['token', 'access_token', 'jwt']);
+
+  if (directToken) {
+    return directToken;
+  }
+
+  if (typeof payload?.data === 'string' && payload.data.length > 20) {
+    return payload.data;
+  }
+
+  return '';
+};
+
+const decodeJwtExpMs = (token) => {
+  try {
+    const pieces = String(token).split('.');
+    if (pieces.length !== 3) return 0;
+    const normalized = pieces[1].replace(/-/g, '+').replace(/_/g, '/');
+    const json = Buffer.from(normalized, 'base64').toString('utf8');
+    const payload = JSON.parse(json);
+    if (!payload?.exp) return 0;
+    return Number(payload.exp) * 1000;
+  } catch {
+    return 0;
+  }
+};
+
+const setCachedToken = (token) => {
+  if (!token) return;
+  cachedToken = token;
+  const expMs = decodeJwtExpMs(token);
+  cachedTokenExpiryMs = expMs || Date.now() + 45 * 60 * 1000;
+};
+
+const hasValidCachedToken = () => {
+  if (!cachedToken) return false;
+  if (!cachedTokenExpiryMs) return true;
+  return Date.now() < cachedTokenExpiryMs - 30_000;
+};
+
+const canRefresh = () => Boolean(MOVINGPAY_AUTH_EMAIL && MOVINGPAY_AUTH_PASSWORD);
+
+const buildRefreshUrl = () => {
+  const url = new URL(MOVINGPAY_ACCESS_PATH, MOVINGPAY_BASE_URL);
+  url.searchParams.set('email', MOVINGPAY_AUTH_EMAIL);
+  url.searchParams.set('password', MOVINGPAY_AUTH_PASSWORD);
+  return url.toString();
+};
+
+const refreshToken = async () => {
+  if (!canRefresh()) {
+    return '';
+  }
+
+  const headers = {
+    'Content-Type': 'application/json',
+  };
+  if (cachedToken) {
+    headers.Authorization = `Bearer ${cachedToken}`;
+  }
+
+  const response = await fetch(buildRefreshUrl(), {
+    method: MOVINGPAY_ACCESS_METHOD,
+    headers,
+    body: MOVINGPAY_ACCESS_METHOD === 'POST' ? JSON.stringify({}) : undefined,
+  });
+
+  if (!response.ok) {
+    return '';
+  }
+
+  const payload = await response.json();
+  const nextToken = resolveAuthToken(payload);
+  if (nextToken) {
+    setCachedToken(nextToken);
+  }
+  return nextToken;
+};
+
+const ensureToken = async () => {
+  if (hasValidCachedToken()) {
+    return cachedToken;
+  }
+
+  const refreshed = await refreshToken();
+  if (refreshed) {
+    return refreshed;
+  }
+
+  if (MOVINGPAY_STATIC_TOKEN) {
+    setCachedToken(MOVINGPAY_STATIC_TOKEN);
+    return MOVINGPAY_STATIC_TOKEN;
+  }
+
+  return '';
+};
+
+const appendQueryParams = (targetUrl, query) => {
+  Object.entries(query || {}).forEach(([key, value]) => {
+    if (value === undefined || value === null) {
+      return;
+    }
+    if (Array.isArray(value)) {
+      value.forEach((item) => targetUrl.searchParams.append(key, String(item)));
+      return;
+    }
+    targetUrl.searchParams.set(key, String(value));
+  });
+};
+
+export default async function handler(req, res) {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET');
+    return res.status(405).json({ message: 'Method Not Allowed' });
+  }
+
+  try {
+    const token = await ensureToken();
+    if (!token) {
+      return res.status(500).json({
+        message: 'Token da MovingPay nao configurado no backend.',
+      });
+    }
+
+    const upstreamUrl = new URL('/api/v3/transacoes', MOVINGPAY_BASE_URL);
+    appendQueryParams(upstreamUrl, req.query);
+
+    const headers = {
+      Authorization: `Bearer ${token}`,
+    };
+
+    const customer = req.headers.customer;
+    if (customer) {
+      headers.customer = String(customer);
+    }
+
+    let upstreamResponse = await fetch(upstreamUrl.toString(), { headers });
+
+    if (upstreamResponse.status === 401 && canRefresh()) {
+      const refreshed = await refreshToken();
+      if (refreshed) {
+        headers.Authorization = `Bearer ${refreshed}`;
+        upstreamResponse = await fetch(upstreamUrl.toString(), { headers });
+      }
+    }
+
+    const body = await upstreamResponse.text();
+    let payload;
+    try {
+      payload = JSON.parse(body);
+    } catch {
+      payload = { message: body || 'Resposta invalida da MovingPay.' };
+    }
+
+    return res.status(upstreamResponse.status).json(payload);
+  } catch (error) {
+    return res.status(500).json({
+      message: 'Falha ao consultar MovingPay no backend.',
+      error: String(error?.message || error),
+    });
+  }
+}
+
