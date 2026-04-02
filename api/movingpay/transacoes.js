@@ -152,39 +152,42 @@ const ensureToken = async (customer) => {
   let refreshStatus = 0;
   let refreshMessage = '';
   let source = 'none';
+  let accessAttempted = false;
 
   if (FORCE_REFRESH_EVERY_REQUEST && canRefresh()) {
+    accessAttempted = true;
     const refreshed = await refreshToken(customer);
     refreshStatus = refreshed.status;
     refreshMessage = refreshed.message;
     if (refreshed.token) {
       source = 'access';
-      return { token: refreshed.token, source, refreshStatus, refreshMessage };
+      return { token: refreshed.token, source, refreshStatus, refreshMessage, accessAttempted };
     }
   }
 
   if (hasValidCachedToken()) {
     source = 'cache';
-    return { token: cachedToken, source, refreshStatus, refreshMessage };
+    return { token: cachedToken, source, refreshStatus, refreshMessage, accessAttempted };
   }
 
   if (!FORCE_REFRESH_EVERY_REQUEST && canRefresh()) {
+    accessAttempted = true;
     const refreshed = await refreshToken(customer);
     refreshStatus = refreshed.status;
     refreshMessage = refreshed.message;
     if (refreshed.token) {
       source = 'access';
-      return { token: refreshed.token, source, refreshStatus, refreshMessage };
+      return { token: refreshed.token, source, refreshStatus, refreshMessage, accessAttempted };
     }
   }
 
   if (MOVINGPAY_STATIC_TOKEN) {
     setCachedToken(MOVINGPAY_STATIC_TOKEN);
     source = 'static';
-    return { token: MOVINGPAY_STATIC_TOKEN, source, refreshStatus, refreshMessage };
+    return { token: MOVINGPAY_STATIC_TOKEN, source, refreshStatus, refreshMessage, accessAttempted };
   }
 
-  return { token: '', source, refreshStatus, refreshMessage };
+  return { token: '', source, refreshStatus, refreshMessage, accessAttempted };
 };
 
 const appendQueryParams = (targetUrl, query) => {
@@ -211,6 +214,8 @@ export default async function handler(req, res) {
     const authResult = await ensureToken(customer);
     const token = authResult.token;
     res.setHeader('x-movingpay-token-source', authResult.source || 'none');
+    res.setHeader('x-movingpay-access-attempted', authResult.accessAttempted ? 'true' : 'false');
+    res.setHeader('x-movingpay-can-refresh', canRefresh() ? 'true' : 'false');
     if (authResult.refreshStatus) {
       res.setHeader('x-movingpay-access-status', String(authResult.refreshStatus));
     }
