@@ -22,6 +22,7 @@ const MOVINGPAY_STATIC_TOKEN = String(
 let cachedToken = MOVINGPAY_STATIC_TOKEN;
 let cachedTokenExpiryMs = 0;
 const FORCE_REFRESH_EVERY_REQUEST = true;
+const REQUIRE_ACCESS_REFRESH = true;
 
 const pickText = (object, fields) => {
   for (const field of fields) {
@@ -88,7 +89,7 @@ const buildRefreshUrl = () => {
 
 const refreshToken = async (customer) => {
   if (!canRefresh()) {
-    return '';
+    return { token: '', status: 0, message: 'Credenciais de acesso nao configuradas.' };
   }
 
   const headers = {
@@ -108,7 +109,12 @@ const refreshToken = async (customer) => {
   });
 
   if (!response.ok) {
-    return '';
+    const errorBody = await response.text();
+    return {
+      token: '',
+      status: response.status,
+      message: errorBody || `Falha no /acessar (HTTP ${response.status})`,
+    };
   }
 
   const payload = await response.json();
@@ -116,34 +122,50 @@ const refreshToken = async (customer) => {
   if (nextToken) {
     setCachedToken(nextToken);
   }
-  return nextToken;
+  return {
+    token: nextToken,
+    status: response.status,
+    message: nextToken ? 'ok' : 'Resposta de /acessar sem token.',
+  };
 };
 
 const ensureToken = async (customer) => {
+  let refreshStatus = 0;
+  let refreshMessage = '';
+  let source = 'none';
+
   if (FORCE_REFRESH_EVERY_REQUEST && canRefresh()) {
     const refreshed = await refreshToken(customer);
-    if (refreshed) {
-      return refreshed;
+    refreshStatus = refreshed.status;
+    refreshMessage = refreshed.message;
+    if (refreshed.token) {
+      source = 'access';
+      return { token: refreshed.token, source, refreshStatus, refreshMessage };
     }
   }
 
-  if (hasValidCachedToken()) {
-    return cachedToken;
+  if (!REQUIRE_ACCESS_REFRESH && hasValidCachedToken()) {
+    source = 'cache';
+    return { token: cachedToken, source, refreshStatus, refreshMessage };
   }
 
-  if (canRefresh()) {
+  if (!FORCE_REFRESH_EVERY_REQUEST && canRefresh()) {
     const refreshed = await refreshToken(customer);
-    if (refreshed) {
-      return refreshed;
+    refreshStatus = refreshed.status;
+    refreshMessage = refreshed.message;
+    if (refreshed.token) {
+      source = 'access';
+      return { token: refreshed.token, source, refreshStatus, refreshMessage };
     }
   }
 
-  if (MOVINGPAY_STATIC_TOKEN) {
+  if (!REQUIRE_ACCESS_REFRESH && MOVINGPAY_STATIC_TOKEN) {
     setCachedToken(MOVINGPAY_STATIC_TOKEN);
-    return MOVINGPAY_STATIC_TOKEN;
+    source = 'static';
+    return { token: MOVINGPAY_STATIC_TOKEN, source, refreshStatus, refreshMessage };
   }
 
-  return '';
+  return { token: '', source, refreshStatus, refreshMessage };
 };
 
 const appendQueryParams = (targetUrl, query) => {
@@ -167,11 +189,22 @@ export default async function handler(req, res) {
 
   try {
     const customer = req.headers.customer;
-    const token = await ensureToken(customer);
+    const authResult = await ensureToken(customer);
+    const token = authResult.token;
+    res.setHeader('x-movingpay-token-source', authResult.source || 'none');
+    if (authResult.refreshStatus) {
+      res.setHeader('x-movingpay-access-status', String(authResult.refreshStatus));
+    }
+    if (authResult.refreshMessage) {
+      res.setHeader('x-movingpay-access-message', encodeURIComponent(String(authResult.refreshMessage).slice(0, 180)));
+    }
+
     if (!token) {
       return res.status(500).json({
-        message: 'Token da MovingPay nao configurado no backend.',
-        hint: 'Configure MOVINGPAY_API_TOKEN ou MOVINGPAY_AUTH_EMAIL/MOVINGPAY_AUTH_PASSWORD na Vercel.',
+        message: 'Nao foi possivel gerar token na rota /acessar antes da consulta.',
+        hint: 'Verifique MOVINGPAY_AUTH_EMAIL/MOVINGPAY_AUTH_PASSWORD e se o endpoint /acessar retorna token valido.',
+        accessStatus: authResult.refreshStatus || null,
+        accessMessage: authResult.refreshMessage || null,
       });
     }
 
@@ -190,8 +223,8 @@ export default async function handler(req, res) {
 
     if (upstreamResponse.status === 401 && canRefresh()) {
       const refreshed = await refreshToken(customer);
-      if (refreshed) {
-        headers.Authorization = `Bearer ${refreshed}`;
+      if (refreshed.token) {
+        headers.Authorization = `Bearer ${refreshed.token}`;
         upstreamResponse = await fetch(upstreamUrl.toString(), { headers });
       }
     }
