@@ -22,7 +22,7 @@ const MOVINGPAY_STATIC_TOKEN = String(
 let cachedToken = MOVINGPAY_STATIC_TOKEN;
 let cachedTokenExpiryMs = 0;
 const FORCE_REFRESH_EVERY_REQUEST = true;
-const REQUIRE_ACCESS_REFRESH = true;
+const REQUIRE_ACCESS_REFRESH = String(process.env.MOVINGPAY_REQUIRE_ACCESS_REFRESH || 'false') === 'true';
 
 const pickText = (object, fields) => {
   for (const field of fields) {
@@ -144,7 +144,7 @@ const ensureToken = async (customer) => {
     }
   }
 
-  if (!REQUIRE_ACCESS_REFRESH && hasValidCachedToken()) {
+  if (hasValidCachedToken()) {
     source = 'cache';
     return { token: cachedToken, source, refreshStatus, refreshMessage };
   }
@@ -159,7 +159,7 @@ const ensureToken = async (customer) => {
     }
   }
 
-  if (!REQUIRE_ACCESS_REFRESH && MOVINGPAY_STATIC_TOKEN) {
+  if (MOVINGPAY_STATIC_TOKEN) {
     setCachedToken(MOVINGPAY_STATIC_TOKEN);
     source = 'static';
     return { token: MOVINGPAY_STATIC_TOKEN, source, refreshStatus, refreshMessage };
