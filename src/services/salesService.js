@@ -1,15 +1,28 @@
 
 import axios from 'axios';
 import apiClient from './apiClient';
+import { firebaseAuth } from './firebase';
 // Endpoint MySQL: usa /api/mysql-summary (Vercel serverless) ou localhost para dev
 const MYSQL_API_URL = import.meta.env.VITE_MYSQL_API_URL || '/api/mysql-summary';
 
 export async function getMysqlSummary({ customerId, startDate, endDate }) {
+  // Envia token Firebase para autenticação no serverless
+  let headers = {};
+  try {
+    const user = firebaseAuth.currentUser;
+    if (user) {
+      const idToken = await user.getIdToken();
+      headers.Authorization = `Bearer ${idToken}`;
+    }
+  } catch (e) {
+    // ignora erro de token, API vai rejeitar se necessário
+  }
+
   const response = await axios.post(MYSQL_API_URL, {
     customerId: customerId ?? null,
     startDate: startDate ?? null,
     endDate: endDate ?? null,
-  });
+  }, { headers });
   return response.data;
 }
 
