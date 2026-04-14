@@ -1,5 +1,14 @@
 import { useCallback, useRef, useState } from 'react';
-import { getSalesSummary } from '../services/salesService';
+import { getMysqlSummary } from '../services/salesService';
+
+function formatDateRange(date, isEnd = false) {
+  if (!date) return null;
+  const d = new Date(date);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd} ${isEnd ? '23:59:59' : '00:00:00'}`;
+}
 import { SUBACQUIRERS } from '../constants/subacquirers';
 
 const BATCH_SIZE = 10;
@@ -27,14 +36,40 @@ export default function useSalesData() {
   const abortControllerRef = useRef(null);
 
   const fetchSingle = useCallback(async (nextRange, signal) => {
-    const result = await getSalesSummary({ ...nextRange, signal });
-    setSummary(result.summary);
-    setDailySeries(result.dailySeries);
-    setCounterBreakdown(result.counterBreakdown || []);
-    setSource(result.source);
+    const { customerHeader, startDate, endDate } = nextRange;
+    const formattedStart = formatDateRange(startDate, false);
+    const formattedEnd = formatDateRange(endDate, true);
+    const result = await getMysqlSummary({
+      customerId: customerHeader,
+      startDate: formattedStart,
+      endDate: formattedEnd,
+    });
+    // result pode ser array ou objeto, dependendo do backend
+    if (Array.isArray(result)) {
+      setSummary({
+        totalSales: result.reduce((acc, row) => acc + Number(row.count_nsu || 0), 0),
+        totalTransactions: result.reduce((acc, row) => acc + Number(row.count_nsu || 0), 0),
+        totalAmount: result.reduce((acc, row) => acc + Number(row.total_amount || 0), 0),
+      });
+      setDailySeries(result.map(row => ({
+        mes_ano: row.mes_ano,
+        totalAmount: Number(row.total_amount || 0),
+        countNsu: Number(row.count_nsu || 0),
+        customers_id: row.customers_id,
+      })));
+    } else {
+      setSummary({
+        totalSales: Number(result.count_nsu || 0),
+        totalTransactions: Number(result.count_nsu || 0),
+        totalAmount: Number(result.total_amount || 0),
+      });
+      setDailySeries([]);
+    }
+    setCounterBreakdown([]);
+    setSource('mysql');
     setReportRows([]);
     setProgress({ done: 0, total: 0 });
-    setRequestLogs(result.requestTrace ? [result.requestTrace] : []);
+    setRequestLogs([]);
   }, []);
 
   const fetchBatchSubacquirers = useCallback(async (nextRange, customerIds, signal) => {
@@ -63,34 +98,30 @@ export default function useSalesData() {
 
         const sub = SUBACQUIRERS.find((item) => item.id === Number(customerId));
         try {
-          const result = await getSalesSummary({
-            ...nextRange,
-            codigoUnidadeNegocios: '0',
-            customerHeader: String(customerId),
-            signal,
+          const formattedStart = formatDateRange(nextRange.startDate, false);
+          const formattedEnd = formatDateRange(nextRange.endDate, true);
+          const result = await getMysqlSummary({
+            customerId: customerId,
+            startDate: formattedStart,
+            endDate: formattedEnd,
           });
-
-          totalTransactions += Number(result.summary?.totalTransactions || 0);
-          totalAmount += Number(result.summary?.totalAmount || 0);
+          totalTransactions += Number(result.count_nsu || 0);
+          totalAmount += Number(result.total_amount || 0);
           successCount += 1;
-
           setReportRows((prev) => [
             ...prev,
             {
               id: Number(customerId),
               name: sub?.name || `ID ${customerId}`,
-              transactions: Number(result.summary?.totalTransactions || 0),
-              amount: Number(result.summary?.totalAmount || 0),
+              transactions: Number(result.count_nsu || 0),
+              amount: Number(result.total_amount || 0),
               status:
-                Number(result.summary?.totalTransactions || 0) === 0 &&
-                Number(result.summary?.totalAmount || 0) === 0
+                Number(result.count_nsu || 0) === 0 &&
+                Number(result.total_amount || 0) === 0
                   ? 'cliente nao transacionando'
                   : 'ok',
             },
           ]);
-          if (result.requestTrace) {
-            setRequestLogs((prev) => [...prev, result.requestTrace]);
-          }
         } catch (err) {
           if (signal?.aborted || err?.message === 'Consulta cancelada pelo usuario.') {
             throw err;
@@ -118,7 +149,7 @@ export default function useSalesData() {
       totalTransactions,
       totalAmount: Number(totalAmount.toFixed(2)),
     });
-    setSource('api');
+    setSource('mysql');
     if (successCount === 0) {
       throw new Error('Nenhum ID retornou dados validos na consulta em lote.');
     }

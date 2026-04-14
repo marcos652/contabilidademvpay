@@ -118,6 +118,12 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
       return;
     }
 
+    // Impedir consulta sem customer selecionado
+    if (selectedCustomerIds.length === 0 && !normalizeCustomerInput(customerHeaderInput)) {
+      setCustomerError('Selecione um customer válido da lista ou marque os IDs desejados.');
+      return;
+    }
+
     if (selectedCustomerIds.length > 0) {
       const uniqueSorted = Array.from(new Set(selectedCustomerIds.map((id) => String(Number(id))))).sort(
         (a, b) => Number(a) - Number(b),
@@ -136,11 +142,6 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
     }
 
     const customerId = normalizeCustomerInput(customerHeaderInput);
-    if (!customerId) {
-      setCustomerError('Selecione um customer valido da lista ou marque os IDs desejados.');
-      return;
-    }
-
     setCustomerError('');
     setShowCustomerOptions(false);
 
@@ -156,6 +157,7 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
   return (
     <form className="filter-card fade-up" onSubmit={applyFilter}>
       <h2>Filtro de periodo</h2>
+
       <div className="filter-grid">
         <label>
           Data inicial
@@ -182,7 +184,7 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
         </label>
 
         <label className="customer-picker" ref={customerPickerRef}>
-          Customer
+          <span style={{ fontWeight: 600 }}>Selecione Customers</span>
           <div className="customer-picker__control" onClick={() => setShowCustomerOptions(true)}>
             <input
               type="text"
@@ -194,37 +196,100 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
                 setCustomerError('');
                 setShowCustomerOptions(true);
               }}
-              placeholder="Digite ID ou nome da sub"
+              placeholder="Buscar por nome ou ID..."
               disabled={disabled}
+              style={{ width: 260 }}
             />
           </div>
+          {selectedCustomerIds.length > 0 && (
+            <div style={{ margin: '8px 0 10px 0', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {selectedCustomerIds.map((id) => {
+                const sub = getSubacquirerById(id);
+                return (
+                  <span key={id} style={{
+                    background: '#6366f1',
+                    color: '#fff',
+                    borderRadius: 16,
+                    padding: '4px 12px 4px 10px',
+                    fontSize: 14,
+                    display: 'flex',
+                    alignItems: 'center',
+                    boxShadow: '0 1px 4px #6366f133',
+                  }}>
+                    {id}{sub ? ` - ${sub.name}` : ''}
+                    <button
+                      type="button"
+                      aria-label="Remover"
+                      style={{
+                        marginLeft: 6,
+                        background: 'none',
+                        border: 'none',
+                        color: '#fff',
+                        fontWeight: 700,
+                        fontSize: 16,
+                        cursor: 'pointer',
+                        lineHeight: 1,
+                        padding: 0,
+                      }}
+                      onClick={() => toggleCustomerId(id)}
+                    >×</button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
           {showCustomerOptions && !disabled && (
-            <div className="customer-picker__menu" onMouseDown={(event) => event.preventDefault()}>
-              <div className="customer-picker__actions">
+            <div
+              className="customer-picker__menu"
+              onMouseDown={(event) => event.preventDefault()}
+              style={{
+                maxHeight: 340,
+                overflowY: 'auto',
+                minWidth: 260,
+                border: '1.5px solid #6366f1',
+                borderRadius: 10,
+                boxShadow: '0 2px 16px #6366f144',
+                background: '#fff',
+                zIndex: 10,
+                position: 'absolute',
+              }}
+            >
+              <div className="customer-picker__actions" style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
                 <button type="button" className="btn btn--secondary" onClick={markAllFiltered}>
-                  Marcar filtrados
+                  Selecionar todos filtrados
                 </button>
                 <button type="button" className="btn btn--secondary" onClick={clearSelected}>
-                  Limpar
+                  Limpar seleção
                 </button>
                 <button type="button" className="btn btn--secondary" onClick={() => setShowCustomerOptions(false)}>
                   Fechar
                 </button>
               </div>
-
               {filteredSubacquirers.length > 0 ? (
                 filteredSubacquirers.map((sub) => {
                   const checked = selectedCustomerIds.includes(String(sub.id));
                   return (
-                    <label key={sub.id} className="customer-picker__option">
-                      <span className="customer-picker__id">{sub.id}</span>
-                      <span className="customer-picker__name">{sub.name}</span>
+                    <label
+                      key={sub.id}
+                      className="customer-picker__option"
+                      style={{
+                        display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', cursor: 'pointer',
+                        background: checked ? '#6366f1' : undefined,
+                        color: checked ? '#fff' : '#222',
+                        borderRadius: checked ? 8 : undefined,
+                        fontWeight: checked ? 700 : 400,
+                        transition: 'background 0.15s, color 0.15s',
+                      }}
+                    >
                       <input
                         className="customer-picker__check"
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleCustomerId(sub.id)}
+                        style={{ accentColor: '#6366f1', marginRight: 8 }}
                       />
+                      <span className="customer-picker__id">{sub.id}</span>
+                      <span className="customer-picker__name">{sub.name}</span>
                     </label>
                   );
                 })
@@ -239,6 +304,7 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
           <button type="submit" className="btn" disabled={disabled || isInvalid}>
             Aplicar filtro
           </button>
+          {customerError && <div className="filter-error" style={{ color: 'red', marginTop: 4 }}>{customerError}</div>}
           <button type="button" className="btn btn--secondary" onClick={onCancel} disabled={!loading}>
             Cancelar
           </button>

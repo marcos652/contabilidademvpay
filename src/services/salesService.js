@@ -1,4 +1,15 @@
+
+import axios from 'axios';
 import apiClient from './apiClient';
+// Novo serviço para consultar o backend MySQL diretamente
+export async function getMysqlSummary({ customerId, startDate, endDate }) {
+  const response = await axios.post('http://localhost:3001/api/mysql-summary', {
+    customerId: customerId ?? null,
+    startDate: startDate ?? null,
+    endDate: endDate ?? null,
+  });
+  return response.data;
+}
 
 const ONLY_APPROVED = true;
 const toQueryString = (params) => {
