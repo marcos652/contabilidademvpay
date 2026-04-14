@@ -15,6 +15,11 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: process.env.USE_MOCK_API === '1' ? undefined : {
+        '/api/mysql-summary': {
+          target: 'http://localhost:3001',
+          changeOrigin: true,
+          secure: false,
+        },
         '/api/movingpay/acessar': {
           target: proxyTarget,
           changeOrigin: true,

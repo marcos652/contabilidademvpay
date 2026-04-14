@@ -1,9 +1,11 @@
 
 import axios from 'axios';
 import apiClient from './apiClient';
-// Novo serviço para consultar o backend MySQL diretamente
+// Endpoint MySQL: usa /api/mysql-summary (Vercel serverless) ou localhost para dev
+const MYSQL_API_URL = import.meta.env.VITE_MYSQL_API_URL || '/api/mysql-summary';
+
 export async function getMysqlSummary({ customerId, startDate, endDate }) {
-  const response = await axios.post('http://localhost:3001/api/mysql-summary', {
+  const response = await axios.post(MYSQL_API_URL, {
     customerId: customerId ?? null,
     startDate: startDate ?? null,
     endDate: endDate ?? null,
