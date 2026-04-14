@@ -49,11 +49,11 @@ export default function useSalesData() {
       setSummary({
         totalSales: result.reduce((acc, row) => acc + Number(row.count_nsu || 0), 0),
         totalTransactions: result.reduce((acc, row) => acc + Number(row.count_nsu || 0), 0),
-        totalAmount: result.reduce((acc, row) => acc + Number(row.total_amount || 0), 0),
+        totalAmount: Number((result.reduce((acc, row) => acc + Number(row.total_amount || 0), 0) / 100).toFixed(2)),
       });
       setDailySeries(result.map(row => ({
         mes_ano: row.mes_ano,
-        totalAmount: Number(row.total_amount || 0),
+        totalAmount: Number((Number(row.total_amount || 0) / 100).toFixed(2)),
         countNsu: Number(row.count_nsu || 0),
         customers_id: row.customers_id,
       })));
@@ -61,7 +61,7 @@ export default function useSalesData() {
       setSummary({
         totalSales: Number(result.count_nsu || 0),
         totalTransactions: Number(result.count_nsu || 0),
-        totalAmount: Number(result.total_amount || 0),
+        totalAmount: Number((Number(result.total_amount || 0) / 100).toFixed(2)),
       });
       setDailySeries([]);
     }
@@ -106,18 +106,19 @@ export default function useSalesData() {
             endDate: formattedEnd,
           });
           totalTransactions += Number(result.count_nsu || 0);
-          totalAmount += Number(result.total_amount || 0);
+          totalAmount += Number((Number(result.total_amount || 0) / 100).toFixed(2));
           successCount += 1;
+          const amountReais = Number((Number(result.total_amount || 0) / 100).toFixed(2));
           setReportRows((prev) => [
             ...prev,
             {
               id: Number(customerId),
               name: sub?.name || `ID ${customerId}`,
               transactions: Number(result.count_nsu || 0),
-              amount: Number(result.total_amount || 0),
+              amount: amountReais,
               status:
                 Number(result.count_nsu || 0) === 0 &&
-                Number(result.total_amount || 0) === 0
+                amountReais === 0
                   ? 'cliente nao transacionando'
                   : 'ok',
             },

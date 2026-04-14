@@ -3,7 +3,6 @@ import MetricCard from '../components/ui/MetricCard';
 import LoadingState from '../components/ui/LoadingState';
 import ErrorState from '../components/ui/ErrorState';
 import CustomerTable from '../components/ui/CustomerTable';
-// import DailySalesChart from '../components/charts/DailySalesChart';
 import useSalesData from '../hooks/useSalesData';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
@@ -47,6 +46,12 @@ function DashboardPage() {
   const latestGeneratedToken =
     [...requestLogs].reverse().find((log) => String(log.generatedToken || '').trim())?.generatedToken || '';
 
+  // Helper: formatar valor monetário
+  const fmtCurrency = (v) =>
+    Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  const fmtNumber = (v) =>
+    Number(v || 0).toLocaleString('pt-BR');
 
   // Exportação XLSX fiel à especificação
   const handleExportXLSX = async () => {
@@ -59,14 +64,14 @@ function DashboardPage() {
     titleCell.value = 'Movingpay';
     titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
     titleCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
-    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF60A5FA' } };
+    titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } };
 
     // Cabeçalho
     const headerRow = sheet.addRow(['Clientes', 'Nº Cliente', 'Transações', 'Valores']);
     headerRow.eachCell((cell, colNumber) => {
       cell.font = { bold: true };
       cell.alignment = { vertical: 'middle', horizontal: colNumber === 1 ? 'left' : colNumber === 4 ? 'right' : 'center' };
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFD9F99D' } };
+      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE0E7FF' } };
       cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
     });
 
@@ -78,7 +83,6 @@ function DashboardPage() {
         row.transactions,
         row.amount,
       ]);
-      // Zebra
       const isEven = idx % 2 === 1;
       excelRow.eachCell((cell, colNumber) => {
         cell.border = { top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' } };
@@ -87,7 +91,7 @@ function DashboardPage() {
           horizontal: colNumber === 1 ? 'left' : colNumber === 4 ? 'right' : 'center',
         };
         if (isEven) {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF1F5F9' } };
+          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF8F9FC' } };
         } else {
           cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } };
         }
@@ -107,7 +111,6 @@ function DashboardPage() {
       col.width = maxLength + 4;
     });
 
-    // Salvar arquivo
     const buffer = await workbook.xlsx.writeBuffer();
     saveAs(new Blob([buffer]), 'relatorio_movingpay.xlsx');
   };
@@ -132,88 +135,12 @@ function DashboardPage() {
     saveAs(blob, 'relatorio_movingpay.json');
   };
 
-  // Interface de exportação
-  const ExportMenu = () => (
-    <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
-      <Button variant="outline" onClick={handleExportXLSX}>Exportar XLSX</Button>
-      <Button variant="outline" onClick={handleExportCSV}>Exportar CSV</Button>
-      <Button variant="outline" onClick={handleExportJSON}>Exportar JSON</Button>
-    </div>
-  );
-
-  return (
-    <section className="dashboard">
-      <ExportMenu />
-      <DateRangeFilter
-        range={range}
-        onApply={applyRange}
-        onCancel={cancelRequest}
-        disabled={loading}
-        loading={loading}
-      />
-
-      <div className="metrics-grid">
-        <MetricCard
-          title={isSpecificUnit ? `Total de vendas da sub ${selectedCustomerHeader}` : 'Total de vendas do periodo'}
-          value={summary.totalSales}
-        />
-        <MetricCard
-          title={
-            isSpecificUnit
-              ? `Quantidade de transacoes da sub ${selectedCustomerHeader}`
-              : 'Quantidade de transacoes (NSU)'
-          }
-          value={summary.totalTransactions}
-        />
-        <MetricCard
-          title={isSpecificUnit ? `Valor da sub ${selectedCustomerHeader}` : 'Valor movimentado no periodo'}
-          value={summary.totalAmount}
-          type="currency"
-        />
-      </div>
-
-      <div className="dashboard-toolbar fade-up">
-        <p className="source-tag">
-          Origem dos dados: <strong>{source === 'api' ? 'API MovingPay' : 'Modo demonstracao'}</strong>
-          {' | '}
-          Consulta: <strong>{scopeLabel}</strong>
-          {' | '}
-          Header customer: <strong>{selectedCustomerLabel}</strong>
-        </p>
-        {isBatchMode && (
-          <p className="source-tag">
-            Progresso lote: <strong>{progress.done}/{progress.total}</strong>
-          </p>
-        )}
-        <button type="button" className="btn btn--secondary" onClick={cancelRequest} disabled={!loading}>
-          Parar consulta
-        </button>
-      </div>
-      {hasSearched && (
-        <section className="console-panel fade-up">
-          <div className="console-panel__header">
-            <h3>Token Gerado</h3>
-            <span className="console-badge">/acessar</span>
-          </div>
-          <p className="console-log call-log">{latestGeneratedToken || 'Nenhum token novo retornado ainda.'}</p>
-          {latestRequest && (
-            <p className="console-log call-log">
-              Acessar chamado: {latestRequest.accessAttempted || '-'} | Pode renovar: {latestRequest.canRefresh || '-'}{' '}
-              | Fonte token: {latestRequest.tokenSource || '-'} | Status acesso: {latestRequest.accessStatus || '-'}
-              {latestRequest.accessMessage ? ` | Msg: ${latestRequest.accessMessage}` : ''}
-            </p>
-          )}
-        </section>
-      )}
-
-      {loading && <LoadingState />}
-      {!loading && hasSearched && error && <ErrorState message={error} onRetry={reload} />}
-      {/* Exibir tabela mensal ao invés de gráfico diário */}
-      {!loading && hasSearched && !error && dailySeries.length > 0 && (
-        <section className="console-panel fade-up">
-          <div className="console-panel__header">
-            <h3>Resumo mensal</h3>
-          </div>
+  // Função auxiliar para renderizar o painel de consulta
+  function renderConsultaPanel() {
+    try {
+      // Modo com dailySeries (múltiplos meses/clientes retornados como array)
+      if (dailySeries && dailySeries.length > 0) {
+        return (
           <div className="report-table-wrap">
             <table className="report-table">
               <thead>
@@ -229,56 +156,224 @@ function DashboardPage() {
                   <tr key={idx}>
                     <td>{row.mes_ano}</td>
                     <td>{row.customers_id}</td>
-                    <td>{row.countNsu}</td>
-                    <td>{row.totalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                    <td>{fmtNumber(row.countNsu)}</td>
+                    <td>{fmtCurrency(row.totalAmount)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-        </section>
-      )}
-      {!loading && hasSearched && !error && dailySeries.length === 0 && (
+        );
+      }
+
+      // Modo lote (batch) — tabela de relatório por customer
+      if (isBatchMode) {
+        return reportRows && reportRows.length > 0 ? (
+          <div className="report-table-wrap">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Nº Cliente</th>
+                  <th>Transações</th>
+                  <th>Valor Total</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reportRows.map((row) => (
+                  <tr key={row.id}>
+                    <td style={{ fontWeight: 600 }}>{row.name}</td>
+                    <td>
+                      <span style={{
+                        background: 'var(--accent-soft)',
+                        color: 'var(--accent)',
+                        borderRadius: '999px',
+                        padding: '2px 10px',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                      }}>
+                        {row.id}
+                      </span>
+                    </td>
+                    <td>{fmtNumber(row.transactions)}</td>
+                    <td style={{ fontWeight: 600 }}>{fmtCurrency(row.amount)}</td>
+                    <td>
+                      <span className={row.status === 'ok' ? 'status-ok' : 'status-error'}>
+                        {row.status === 'ok' ? '✓ OK' : row.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="console-empty">Nenhum resultado encontrado.</p>
+        );
+      }
+
+      // Modo resumo — exibir no formato de tabela com os campos como relatório
+      if (summary && (summary.totalAmount || summary.totalTransactions)) {
+        return (
+          <div className="report-table-wrap">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th>Campo</th>
+                  <th>Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ fontWeight: 600 }}>Customer</td>
+                  <td>
+                    <span style={{
+                      background: 'var(--accent-soft)',
+                      color: 'var(--accent)',
+                      borderRadius: '999px',
+                      padding: '2px 10px',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                    }}>
+                      {selectedCustomerLabel}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 600 }}>Total de Vendas</td>
+                  <td style={{ fontWeight: 700, fontSize: '1rem' }}>{fmtNumber(summary.totalSales)}</td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 600 }}>Transações (NSU)</td>
+                  <td style={{ fontWeight: 700, fontSize: '1rem' }}>{fmtNumber(summary.totalTransactions)}</td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 600 }}>Valor Movimentado</td>
+                  <td style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--accent)' }}>
+                    {fmtCurrency(summary.totalAmount)}
+                  </td>
+                </tr>
+                {range?.startDate && (
+                  <tr>
+                    <td style={{ fontWeight: 600 }}>Período</td>
+                    <td>
+                      {new Date(range.startDate).toLocaleDateString('pt-BR')} — {new Date(range.endDate).toLocaleDateString('pt-BR')}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+
+      // Fallback: request logs
+      if (requestLogs && requestLogs[0]) {
+        return (
+          <div className="report-table-wrap">
+            <table className="report-table">
+              <thead>
+                <tr>
+                  <th>Campo</th>
+                  <th>Valor</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ fontWeight: 600 }}>Chamada</td>
+                  <td>{requestLogs[0].route}</td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 600 }}>Status HTTP</td>
+                  <td>
+                    <span className={requestLogs[0].httpStatus < 400 ? 'status-ok' : 'status-error'}>
+                      {requestLogs[0].httpStatus}
+                    </span>
+                  </td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 600 }}>Customer</td>
+                  <td>{requestLogs[0].customerHeader || '-'}</td>
+                </tr>
+                <tr>
+                  <td style={{ fontWeight: 600 }}>Token</td>
+                  <td style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '0.78rem' }}>
+                    {requestLogs[0].tokenSource || '-'}
+                  </td>
+                </tr>
+                {requestLogs[0].accessMessage && (
+                  <tr>
+                    <td style={{ fontWeight: 600 }}>Mensagem Acesso</td>
+                    <td>{requestLogs[0].accessMessage}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        );
+      }
+
+      return <p className="console-empty">Nenhum resultado encontrado.</p>;
+    } catch (e) {
+      return <p className="console-empty">Erro ao exibir dados. Tente novamente.</p>;
+    }
+  }
+
+  // Interface de exportação
+  const ExportMenu = () => (
+    <div style={{ display: 'flex', gap: 8 }}>
+      <Button variant="outline" onClick={handleExportXLSX}>📊 XLSX</Button>
+      <Button variant="outline" onClick={handleExportCSV}>📄 CSV</Button>
+      <Button variant="outline" onClick={handleExportJSON}>🔧 JSON</Button>
+    </div>
+  );
+
+  return (
+    <section className="dashboard">
+      <DateRangeFilter
+        range={range}
+        onApply={applyRange}
+        onCancel={cancelRequest}
+        disabled={loading}
+        loading={loading}
+      />
+
+      {loading && <LoadingState />}
+      {!loading && hasSearched && error && <ErrorState message={error} onRetry={reload} />}
+
+      {/* Painel de resultado após busca */}
+      {!loading && hasSearched && !error && (
         <section className="console-panel fade-up">
           <div className="console-panel__header">
             <h3>Console de Consulta</h3>
-            <span className="console-badge">{isBatchMode ? 'Relatorio em lote' : 'Modo resumo'}</span>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className="console-badge">{isBatchMode ? 'Relatório em lote' : 'Modo resumo'}</span>
+              {reportRows && reportRows.length > 0 && <ExportMenu />}
+            </div>
           </div>
-          {isBatchMode ? (
-            <CustomerTable rows={reportRows} />
-          ) : (
-            <>
-              <p className="console-log">
-                Dados carregados. Neste modo de consulta (`opcoes=resumo`), a API retorna apenas resumo e nao a serie por dia.
-              </p>
-              {requestLogs[0] && (
-                <div className="console-log call-log">
-                  <strong>Chamada:</strong> {requestLogs[0].route}
-                  <br />
-                  <strong>Status:</strong> {requestLogs[0].httpStatus} | <strong>Customer:</strong>{' '}
-                  {requestLogs[0].customerHeader || '-'} | <strong>Token:</strong> {requestLogs[0].tokenSource || '-'} |
-                  <strong> /acessar:</strong> {requestLogs[0].accessAttempted || '-'}
-                  <br />
-                  <strong>Token novo:</strong> {requestLogs[0].generatedToken || '-'}
-                  {requestLogs[0].accessMessage ? (
-                    <>
-                      <br />
-                      <strong>Mensagem acesso:</strong> {requestLogs[0].accessMessage}
-                    </>
-                  ) : null}
-                </div>
-              )}
-            </>
+          {renderConsultaPanel()}
+
+          {/* Summary cards quando tiver dados */}
+          {summary && (summary.totalAmount > 0 || summary.totalTransactions > 0) && (
+            <div className="metrics-grid" style={{ marginTop: '16px' }}>
+              <MetricCard title="Total Transações" value={summary.totalTransactions} type="number" />
+              <MetricCard title="Valor Movimentado" value={summary.totalAmount} type="currency" />
+              <MetricCard title="Total Vendas" value={summary.totalSales} type="number" />
+            </div>
           )}
         </section>
       )}
+
       {!loading && !hasSearched && (
         <section className="console-panel fade-up">
           <div className="console-panel__header">
             <h3>Console de Consulta</h3>
             <span className="console-badge">Aguardando</span>
           </div>
-          <p className="console-empty">Selecione o periodo, marque os IDs desejados e clique em Aplicar filtro.</p>
+          <p className="console-empty">
+            Selecione o período, marque os IDs desejados e clique em <strong>Aplicar filtro</strong>.
+          </p>
         </section>
       )}
     </section>

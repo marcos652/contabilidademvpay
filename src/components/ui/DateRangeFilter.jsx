@@ -156,7 +156,7 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
 
   return (
     <form className="filter-card fade-up" onSubmit={applyFilter}>
-      <h2>Filtro de periodo</h2>
+      <h2>Filtro de período</h2>
 
       <div className="filter-grid">
         <label>
@@ -198,39 +198,22 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
               }}
               placeholder="Buscar por nome ou ID..."
               disabled={disabled}
-              style={{ width: 260 }}
+              style={{ width: '100%' }}
             />
           </div>
+
+          {/* Tags selecionadas */}
           {selectedCustomerIds.length > 0 && (
-            <div style={{ margin: '8px 0 10px 0', display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <div className="selected-tags">
               {selectedCustomerIds.map((id) => {
                 const sub = getSubacquirerById(id);
                 return (
-                  <span key={id} style={{
-                    background: '#6366f1',
-                    color: '#fff',
-                    borderRadius: 16,
-                    padding: '4px 12px 4px 10px',
-                    fontSize: 14,
-                    display: 'flex',
-                    alignItems: 'center',
-                    boxShadow: '0 1px 4px #6366f133',
-                  }}>
+                  <span key={id} className="selected-tag">
                     {id}{sub ? ` - ${sub.name}` : ''}
                     <button
                       type="button"
                       aria-label="Remover"
-                      style={{
-                        marginLeft: 6,
-                        background: 'none',
-                        border: 'none',
-                        color: '#fff',
-                        fontWeight: 700,
-                        fontSize: 16,
-                        cursor: 'pointer',
-                        lineHeight: 1,
-                        padding: 0,
-                      }}
+                      className="selected-tag__remove"
                       onClick={() => toggleCustomerId(id)}
                     >×</button>
                   </span>
@@ -238,28 +221,19 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
               })}
             </div>
           )}
+
+          {/* Dropdown */}
           {showCustomerOptions && !disabled && (
             <div
               className="customer-picker__menu"
               onMouseDown={(event) => event.preventDefault()}
-              style={{
-                maxHeight: 340,
-                overflowY: 'auto',
-                minWidth: 260,
-                border: '1.5px solid #6366f1',
-                borderRadius: 10,
-                boxShadow: '0 2px 16px #6366f144',
-                background: '#fff',
-                zIndex: 10,
-                position: 'absolute',
-              }}
             >
-              <div className="customer-picker__actions" style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+              <div className="customer-picker__actions">
                 <button type="button" className="btn btn--secondary" onClick={markAllFiltered}>
-                  Selecionar todos filtrados
+                  Selecionar todos
                 </button>
                 <button type="button" className="btn btn--secondary" onClick={clearSelected}>
-                  Limpar seleção
+                  Limpar
                 </button>
                 <button type="button" className="btn btn--secondary" onClick={() => setShowCustomerOptions(false)}>
                   Fechar
@@ -271,22 +245,13 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
                   return (
                     <label
                       key={sub.id}
-                      className="customer-picker__option"
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', cursor: 'pointer',
-                        background: checked ? '#6366f1' : undefined,
-                        color: checked ? '#fff' : '#222',
-                        borderRadius: checked ? 8 : undefined,
-                        fontWeight: checked ? 700 : 400,
-                        transition: 'background 0.15s, color 0.15s',
-                      }}
+                      className={`customer-picker__option ${checked ? 'customer-picker__option--selected' : ''}`}
                     >
                       <input
                         className="customer-picker__check"
                         type="checkbox"
                         checked={checked}
                         onChange={() => toggleCustomerId(sub.id)}
-                        style={{ accentColor: '#6366f1', marginRight: 8 }}
                       />
                       <span className="customer-picker__id">{sub.id}</span>
                       <span className="customer-picker__name">{sub.name}</span>
@@ -302,23 +267,39 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
 
         <div className="filter-actions">
           <button type="submit" className="btn" disabled={disabled || isInvalid}>
-            Aplicar filtro
+            {loading ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }} />
+                Consultando...
+              </span>
+            ) : 'Aplicar filtro'}
           </button>
-          {customerError && <div className="filter-error" style={{ color: 'red', marginTop: 4 }}>{customerError}</div>}
           <button type="button" className="btn btn--secondary" onClick={onCancel} disabled={!loading}>
             Cancelar
           </button>
         </div>
       </div>
 
-      <small className="source-tag">
-        Marque quantos IDs quiser para a pesquisa. O motor consulta um por vez e monta o relatorio abaixo.
-      </small>
-      {selectedCustomerIds.length > 0 && (
-        <small className="source-tag">Selecionados: {selectedCustomerIds.length} IDs</small>
-      )}
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '12px', flexWrap: 'wrap' }}>
+        <small className="source-tag">
+          Marque quantos IDs quiser. O motor consulta um por vez e monta o relatório.
+        </small>
+        {selectedCustomerIds.length > 0 && (
+          <small className="source-tag" style={{
+            background: 'var(--accent-soft)',
+            padding: '3px 12px',
+            borderRadius: '999px',
+            fontWeight: 700,
+            color: 'var(--accent)',
+            border: '1px solid var(--tag-border)',
+          }}>
+            {selectedCustomerIds.length} IDs selecionados
+          </small>
+        )}
+      </div>
+
       {customerError && <small className="filter-error">{customerError}</small>}
-      {isInvalid && <small className="filter-error">A data inicial nao pode ser maior que a data final.</small>}
+      {isInvalid && <small className="filter-error">A data inicial não pode ser maior que a data final.</small>}
     </form>
   );
 }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { LOGO_BASE64 } from '../assets/logo';
 
 function LoginPage() {
   const { login } = useAuth();
@@ -32,9 +33,16 @@ function LoginPage() {
   return (
     <section className="login-page">
       <div className="login-card fade-up">
-        <p className="eyebrow">MovingPay</p>
-        <h2>Acesso ao painel</h2>
-        <p className="login-subtitle">Entre com seu usuario Firebase para abrir o dashboard.</p>
+        <div style={{ textAlign: 'center', marginBottom: '8px' }}>
+          <img
+            src={LOGO_BASE64}
+            alt="MovingPay"
+            style={{ width: '56px', height: '56px', objectFit: 'contain', marginBottom: '8px' }}
+          />
+          <p className="eyebrow" style={{ fontSize: '0.68rem', letterSpacing: '0.22em' }}>MovingPay</p>
+          <h2 style={{ marginTop: '6px' }}>Acesso ao painel</h2>
+          <p className="login-subtitle">Entre com seu usuário Firebase para abrir o dashboard.</p>
+        </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
@@ -64,15 +72,33 @@ function LoginPage() {
           </label>
 
           <button type="submit" className="btn" disabled={loading}>
-            {loading ? 'Entrando...' : 'Entrar'}
+            {loading ? (
+              <span style={{ display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
+                <span className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }} />
+                Entrando...
+              </span>
+            ) : 'Entrar'}
           </button>
         </form>
 
-        {error && <small className="filter-error">{error}</small>}
+        {error && (
+          <div style={{
+            marginTop: '14px',
+            padding: '10px 14px',
+            background: 'var(--danger-soft)',
+            borderRadius: 'var(--radius-sm)',
+            border: '1px solid var(--danger)',
+            color: 'var(--danger)',
+            fontSize: '0.82rem',
+            fontWeight: 500,
+            textAlign: 'center'
+          }}>
+            {error}
+          </div>
+        )}
       </div>
     </section>
   );
 }
 
 export default LoginPage;
-
