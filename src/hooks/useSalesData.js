@@ -33,20 +33,31 @@ async function fetchWithFallback({ customerId, startDate, endDate, signal }) {
       source: 'mysql',
     };
   } catch (mysqlErr) {
-    console.warn('MySQL falhou, usando MovingPay API:', mysqlErr.message);
+    console.warn('MySQL falhou, tentando MovingPay API:', mysqlErr.message);
     // Fallback: usa a API MovingPay
-    const apiResult = await getSalesSummary({
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
-      customerHeader: String(customerId),
-      signal,
-    });
-    return {
-      count_nsu: apiResult.summary?.totalTransactions || 0,
-      // API já retorna em reais, converter para centavos para manter consistência
-      total_amount: (apiResult.summary?.totalAmount || 0) * 100,
-      source: 'api',
-    };
+    try {
+      const apiResult = await getSalesSummary({
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        customerHeader: String(customerId),
+        signal,
+      });
+      return {
+        count_nsu: apiResult.summary?.totalTransactions || 0,
+        // API já retorna em reais, converter para centavos para manter consistência
+        total_amount: (apiResult.summary?.totalAmount || 0) * 100,
+        source: 'api',
+      };
+    } catch (apiErr) {
+      // Se a API também falhou (498, etc), retorna zeros com erro
+      console.warn('API MovingPay também falhou:', apiErr.message);
+      return {
+        count_nsu: 0,
+        total_amount: 0,
+        source: 'error',
+        errorMessage: apiErr.message || 'Sem acesso via API',
+      };
+    }
   }
 }
 
@@ -123,6 +134,7 @@ export default function useSalesData() {
             signal,
           });
           if (result.source === 'api') usedSource = 'api';
+          if (result.source === 'error') usedSource = 'api';
           totalTransactions += result.count_nsu;
           const amountReais = Number((result.total_amount / 100).toFixed(2));
           totalAmount += amountReais;
@@ -135,9 +147,11 @@ export default function useSalesData() {
               transactions: result.count_nsu,
               amount: amountReais,
               status:
-                result.count_nsu === 0 && amountReais === 0
-                  ? 'cliente nao transacionando'
-                  : 'ok',
+                result.source === 'error'
+                  ? 'sem acesso'
+                  : result.count_nsu === 0 && amountReais === 0
+                    ? 'cliente nao transacionando'
+                    : 'ok',
             },
           ]);
         } catch (err) {
