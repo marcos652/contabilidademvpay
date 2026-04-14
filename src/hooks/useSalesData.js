@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react';
-import { getMysqlSummary } from '../services/salesService';
+import { getMysqlSummary, getSalesSummary } from '../services/salesService';
+import { SUBACQUIRERS } from '../constants/subacquirers';
 
 function formatDateRange(date, isEnd = false) {
   if (!date) return null;
@@ -9,7 +10,6 @@ function formatDateRange(date, isEnd = false) {
   const dd = String(d.getDate()).padStart(2, '0');
   return `${yyyy}-${mm}-${dd} ${isEnd ? '23:59:59' : '00:00:00'}`;
 }
-import { SUBACQUIRERS } from '../constants/subacquirers';
 
 const BATCH_SIZE = 10;
 
@@ -20,6 +20,35 @@ const chunkArray = (items, size) => {
   }
   return chunks;
 };
+
+// Tenta MySQL como fonte primária, cai para MovingPay API se falhar
+async function fetchWithFallback({ customerId, startDate, endDate, signal }) {
+  try {
+    const result = await getMysqlSummary({ customerId, startDate, endDate });
+    // MySQL retorna array, pega o primeiro resultado
+    const row = Array.isArray(result) ? result[0] || {} : result || {};
+    return {
+      count_nsu: Number(row.count_nsu || 0),
+      total_amount: Number(row.total_amount || 0),
+      source: 'mysql',
+    };
+  } catch (mysqlErr) {
+    console.warn('MySQL falhou, usando MovingPay API:', mysqlErr.message);
+    // Fallback: usa a API MovingPay
+    const apiResult = await getSalesSummary({
+      startDate: new Date(startDate),
+      endDate: new Date(endDate),
+      customerHeader: String(customerId),
+      signal,
+    });
+    return {
+      count_nsu: apiResult.summary?.totalTransactions || 0,
+      // API já retorna em reais, converter para centavos para manter consistência
+      total_amount: (apiResult.summary?.totalAmount || 0) * 100,
+      source: 'api',
+    };
+  }
+}
 
 export default function useSalesData() {
   const [range, setRange] = useState(null);
@@ -39,34 +68,20 @@ export default function useSalesData() {
     const { customerHeader, startDate, endDate } = nextRange;
     const formattedStart = formatDateRange(startDate, false);
     const formattedEnd = formatDateRange(endDate, true);
-    const result = await getMysqlSummary({
+    const result = await fetchWithFallback({
       customerId: customerHeader,
       startDate: formattedStart,
       endDate: formattedEnd,
+      signal,
     });
-    // result pode ser array ou objeto, dependendo do backend
-    if (Array.isArray(result)) {
-      setSummary({
-        totalSales: result.reduce((acc, row) => acc + Number(row.count_nsu || 0), 0),
-        totalTransactions: result.reduce((acc, row) => acc + Number(row.count_nsu || 0), 0),
-        totalAmount: Number((result.reduce((acc, row) => acc + Number(row.total_amount || 0), 0) / 100).toFixed(2)),
-      });
-      setDailySeries(result.map(row => ({
-        mes_ano: row.mes_ano,
-        totalAmount: Number((Number(row.total_amount || 0) / 100).toFixed(2)),
-        countNsu: Number(row.count_nsu || 0),
-        customers_id: row.customers_id,
-      })));
-    } else {
-      setSummary({
-        totalSales: Number(result.count_nsu || 0),
-        totalTransactions: Number(result.count_nsu || 0),
-        totalAmount: Number((Number(result.total_amount || 0) / 100).toFixed(2)),
-      });
-      setDailySeries([]);
-    }
+    setSummary({
+      totalSales: result.count_nsu,
+      totalTransactions: result.count_nsu,
+      totalAmount: Number((result.total_amount / 100).toFixed(2)),
+    });
+    setDailySeries([]);
     setCounterBreakdown([]);
-    setSource('mysql');
+    setSource(result.source);
     setReportRows([]);
     setProgress({ done: 0, total: 0 });
     setRequestLogs([]);
@@ -81,6 +96,7 @@ export default function useSalesData() {
     let totalTransactions = 0;
     let totalAmount = 0;
     let successCount = 0;
+    let usedSource = 'mysql';
 
     setDailySeries([]);
     setCounterBreakdown([]);
@@ -100,25 +116,26 @@ export default function useSalesData() {
         try {
           const formattedStart = formatDateRange(nextRange.startDate, false);
           const formattedEnd = formatDateRange(nextRange.endDate, true);
-          const result = await getMysqlSummary({
-            customerId: customerId,
+          const result = await fetchWithFallback({
+            customerId,
             startDate: formattedStart,
             endDate: formattedEnd,
+            signal,
           });
-          totalTransactions += Number(result.count_nsu || 0);
-          totalAmount += Number((Number(result.total_amount || 0) / 100).toFixed(2));
+          if (result.source === 'api') usedSource = 'api';
+          totalTransactions += result.count_nsu;
+          const amountReais = Number((result.total_amount / 100).toFixed(2));
+          totalAmount += amountReais;
           successCount += 1;
-          const amountReais = Number((Number(result.total_amount || 0) / 100).toFixed(2));
           setReportRows((prev) => [
             ...prev,
             {
               id: Number(customerId),
               name: sub?.name || `ID ${customerId}`,
-              transactions: Number(result.count_nsu || 0),
+              transactions: result.count_nsu,
               amount: amountReais,
               status:
-                Number(result.count_nsu || 0) === 0 &&
-                amountReais === 0
+                result.count_nsu === 0 && amountReais === 0
                   ? 'cliente nao transacionando'
                   : 'ok',
             },
@@ -150,7 +167,7 @@ export default function useSalesData() {
       totalTransactions,
       totalAmount: Number(totalAmount.toFixed(2)),
     });
-    setSource('mysql');
+    setSource(usedSource);
     if (successCount === 0) {
       throw new Error('Nenhum ID retornou dados validos na consulta em lote.');
     }
