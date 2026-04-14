@@ -1,4 +1,4 @@
-import { LOGO_BASE64 } from '../assets/logo';
+import { LOGO_BASE64 } from '../../assets/logo';
 
 function Header({ theme, onToggleTheme, userEmail, onLogout }) {
   return (
