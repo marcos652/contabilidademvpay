@@ -14,6 +14,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     server: {
       port: 5173,
+      host: true,
       proxy: {
         // MySQL API — sempre ativa (independente de mock)
         '/api/mysql-summary': {
