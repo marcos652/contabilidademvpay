@@ -86,12 +86,7 @@ function DashboardPage() {
     return [];
   };
 
-  const hasExportData = hasSearched && !error && !loading &&
-    (
-      (reportRows && reportRows.length > 0) ||
-      (dailySeries && dailySeries.length > 0) ||
-      (summary && (summary.totalAmount > 0 || summary.totalTransactions > 0))
-    );
+  const hasExportData = hasSearched && !error && !loading && getExportableRows().length > 0;
 
   // Exportação XLSX fiel à especificação
   const handleExportXLSX = async () => {
@@ -144,14 +139,15 @@ function DashboardPage() {
       });
     });
 
-    // Ajuste automático de largura
-    sheet.columns.forEach((col) => {
-      let maxLength = 0;
+    // Ajuste de largura com mínimos generosos
+    const minWidths = [30, 14, 16, 22]; // Clientes, Nº Cliente, Transações, Valores
+    sheet.columns.forEach((col, colIdx) => {
+      let maxLength = minWidths[colIdx] || 12;
       col.eachCell({ includeEmpty: true }, (cell) => {
         const value = cell.value ? cell.value.toString() : '';
-        maxLength = Math.max(maxLength, value.length);
+        maxLength = Math.max(maxLength, value.length + 6);
       });
-      col.width = maxLength + 4;
+      col.width = maxLength;
     });
 
     const buffer = await workbook.xlsx.writeBuffer();
