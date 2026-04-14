@@ -53,8 +53,51 @@ function DashboardPage() {
   const fmtNumber = (v) =>
     Number(v || 0).toLocaleString('pt-BR');
 
+  // Helper: gerar linhas exportáveis para qualquer modo
+  const getExportableRows = () => {
+    // Modo batch — usar reportRows diretamente
+    if (reportRows && reportRows.length > 0) {
+      return reportRows.map(row => ({
+        name: row.name,
+        id: row.id,
+        transactions: row.transactions,
+        amount: row.amount,
+      }));
+    }
+    // Modo dailySeries (array de meses)
+    if (dailySeries && dailySeries.length > 0) {
+      return dailySeries.map(row => ({
+        name: row.mes_ano || '-',
+        id: row.customers_id || selectedCustomerHeader,
+        transactions: row.countNsu,
+        amount: row.totalAmount,
+      }));
+    }
+    // Modo resumo (1 customer)
+    if (summary && (summary.totalAmount || summary.totalTransactions)) {
+      const sub = getSubacquirerById(selectedCustomerHeader);
+      return [{
+        name: sub?.name || `ID ${selectedCustomerHeader}`,
+        id: Number(selectedCustomerHeader) || 0,
+        transactions: summary.totalTransactions,
+        amount: summary.totalAmount,
+      }];
+    }
+    return [];
+  };
+
+  const hasExportData = hasSearched && !error && !loading &&
+    (
+      (reportRows && reportRows.length > 0) ||
+      (dailySeries && dailySeries.length > 0) ||
+      (summary && (summary.totalAmount > 0 || summary.totalTransactions > 0))
+    );
+
   // Exportação XLSX fiel à especificação
   const handleExportXLSX = async () => {
+    const rows = getExportableRows();
+    if (rows.length === 0) return;
+
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Relatório');
 
@@ -76,7 +119,7 @@ function DashboardPage() {
     });
 
     // Corpo da tabela
-    reportRows.forEach((row, idx) => {
+    rows.forEach((row, idx) => {
       const excelRow = sheet.addRow([
         row.name,
         row.id,
@@ -117,21 +160,27 @@ function DashboardPage() {
 
   // Exportação CSV (ponto e vírgula)
   const handleExportCSV = () => {
+    const rows = getExportableRows();
+    if (rows.length === 0) return;
+
     const header = ['Clientes', 'Nº Cliente', 'Transações', 'Valores'];
-    const rows = reportRows.map(row => [
+    const csvRows = rows.map(row => [
       `"${row.name}"`,
       row.id,
       row.transactions,
       `"${row.amount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}"`
     ]);
-    const csv = [header, ...rows].map(r => r.join(';')).join('\r\n');
+    const csv = [header, ...csvRows].map(r => r.join(';')).join('\r\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     saveAs(blob, 'relatorio_movingpay.csv');
   };
 
   // Exportação JSON
   const handleExportJSON = () => {
-    const blob = new Blob([JSON.stringify(reportRows, null, 2)], { type: 'application/json' });
+    const rows = getExportableRows();
+    if (rows.length === 0) return;
+
+    const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
     saveAs(blob, 'relatorio_movingpay.json');
   };
 
@@ -349,7 +398,7 @@ function DashboardPage() {
             <h3>Console de Consulta</h3>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <span className="console-badge">{isBatchMode ? 'Relatório em lote' : 'Modo resumo'}</span>
-              {reportRows && reportRows.length > 0 && <ExportMenu />}
+              {hasExportData && <ExportMenu />}
             </div>
           </div>
           {renderConsultaPanel()}
