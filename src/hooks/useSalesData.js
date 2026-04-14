@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState } from 'react';
-import { getMysqlSummary, getSalesSummary } from '../services/salesService';
+import axios from 'axios';
+import { getMysqlSummary } from '../services/salesService';
+import { firebaseAuth } from '../services/firebase';
 import { SUBACQUIRERS } from '../constants/subacquirers';
 
 function formatDateRange(date, isEnd = false) {
@@ -21,11 +23,35 @@ const chunkArray = (items, size) => {
   return chunks;
 };
 
-// Tenta MySQL como fonte primária, cai para MovingPay API se falhar
-async function fetchWithFallback({ customerId, startDate, endDate, signal }) {
+// Fallback via /api/resumo (gera token + consulta numa só chamada)
+async function fetchViaResumoAPI({ customerId, startDate, endDate }) {
+  let headers = {};
+  try {
+    const user = firebaseAuth.currentUser;
+    if (user) {
+      const idToken = await user.getIdToken();
+      headers.Authorization = `Bearer ${idToken}`;
+    }
+  } catch (e) { /* ignora */ }
+
+  const res = await axios.post('/api/resumo', {
+    customerId: String(customerId),
+    startDate,
+    endDate,
+  }, { headers });
+
+  const row = Array.isArray(res.data) ? res.data[0] || {} : res.data || {};
+  return {
+    count_nsu: Number(row.count_nsu || 0),
+    total_amount: Number(row.total_amount || 0),
+    source: 'api',
+  };
+}
+
+// Tenta MySQL → cai para /api/resumo (token fresco a cada chamada)
+async function fetchWithFallback({ customerId, startDate, endDate }) {
   try {
     const result = await getMysqlSummary({ customerId, startDate, endDate });
-    // MySQL retorna array, pega o primeiro resultado
     const row = Array.isArray(result) ? result[0] || {} : result || {};
     return {
       count_nsu: Number(row.count_nsu || 0),
@@ -33,29 +59,16 @@ async function fetchWithFallback({ customerId, startDate, endDate, signal }) {
       source: 'mysql',
     };
   } catch (mysqlErr) {
-    console.warn('MySQL falhou, tentando MovingPay API:', mysqlErr.message);
-    // Fallback: usa a API MovingPay
+    console.warn('MySQL falhou, usando /api/resumo:', mysqlErr.message);
     try {
-      const apiResult = await getSalesSummary({
-        startDate: new Date(startDate),
-        endDate: new Date(endDate),
-        customerHeader: String(customerId),
-        signal,
-      });
-      return {
-        count_nsu: apiResult.summary?.totalTransactions || 0,
-        // API já retorna em reais, converter para centavos para manter consistência
-        total_amount: (apiResult.summary?.totalAmount || 0) * 100,
-        source: 'api',
-      };
+      return await fetchViaResumoAPI({ customerId, startDate, endDate });
     } catch (apiErr) {
-      // Se a API também falhou (498, etc), retorna zeros com erro
-      console.warn('API MovingPay também falhou:', apiErr.message);
+      console.warn('API resumo também falhou:', apiErr.message);
       return {
         count_nsu: 0,
         total_amount: 0,
         source: 'error',
-        errorMessage: apiErr.message || 'Sem acesso via API',
+        errorMessage: apiErr.response?.data?.message || apiErr.message || 'Sem acesso',
       };
     }
   }
