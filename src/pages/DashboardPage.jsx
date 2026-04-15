@@ -8,6 +8,7 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { Button } from '../components/ui/Button';
 import { getSubacquirerById } from '../constants/subacquirers';
+import { LOGO_BASE64 } from '../assets/logo';
 
 function DashboardPage() {
   const {
@@ -96,12 +97,20 @@ function DashboardPage() {
     const workbook = new ExcelJS.Workbook();
     const sheet = workbook.addWorksheet('Relatório');
 
-    // Título
+    // Logo + Título
+    const logoBase64Raw = LOGO_BASE64.replace(/^data:image\/\w+;base64,/, '');
+    const logoId = workbook.addImage({
+      base64: logoBase64Raw,
+      extension: 'png',
+    });
     sheet.mergeCells('A1:D1');
+    sheet.getRow(1).height = 50;
+    sheet.addImage(logoId, {
+      tl: { col: 1.0, row: 0.05 },
+      ext: { width: 160, height: 45 },
+    });
     const titleCell = sheet.getCell('A1');
-    titleCell.value = 'Movingpay';
     titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
-    titleCell.font = { bold: true, size: 16, color: { argb: 'FFFFFFFF' } };
     titleCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF6366F1' } };
 
     // Cabeçalho

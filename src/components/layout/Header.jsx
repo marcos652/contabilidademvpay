@@ -7,7 +7,7 @@ function Header({ theme, onToggleTheme, userEmail, onLogout }) {
         <img
           src={LOGO_BASE64}
           alt="MovingPay"
-          style={{ width: '36px', height: '36px', objectFit: 'contain' }}
+          style={{ height: '48px', width: 'auto', objectFit: 'contain' }}
         />
         <div>
           <p className="eyebrow">MovingPay</p>

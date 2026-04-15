@@ -5,13 +5,17 @@ import LoginPage from './pages/LoginPage';
 import { useAuth } from './context/AuthContext';
 
 function App() {
-  const [theme, setTheme] = useState('light');
+  const [theme, setTheme] = useState(() => localStorage.getItem('mvpay-theme') || 'light');
   const { isAuthenticated, loadingAuth, user, logout } = useAuth();
 
   const appClassName = useMemo(() => `app ${theme}`, [theme]);
 
   const toggleTheme = () => {
-    setTheme((currentTheme) => (currentTheme === 'light' ? 'dark' : 'light'));
+    setTheme((currentTheme) => {
+      const next = currentTheme === 'light' ? 'dark' : 'light';
+      localStorage.setItem('mvpay-theme', next);
+      return next;
+    });
   };
 
   if (loadingAuth) {

@@ -2,8 +2,17 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { parseDateInput, toInputDate } from '../../utils/date';
 import { SUBACQUIRERS, getSubacquirerById } from '../../constants/subacquirers';
 
-const DEFAULT_START_DATE = '2026-02-25';
-const DEFAULT_END_DATE = '2026-03-31';
+const getClosedMonth = () => {
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), 0); // last day of prev month
+  const fmt = (d) => d.toISOString().split('T')[0];
+  return { start: fmt(start), end: fmt(end) };
+};
+
+const CLOSED_MONTH = getClosedMonth();
+const DEFAULT_START_DATE = CLOSED_MONTH.start;
+const DEFAULT_END_DATE = CLOSED_MONTH.end;
 const DEFAULT_CUSTOMER_HEADER = '';
 
 const normalizeCustomerInput = (value) => {
@@ -154,9 +163,45 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
     });
   };
 
+  const applyPreset = (startDate, endDate) => {
+    setStartDateInput(startDate);
+    setEndDateInput(endDate);
+  };
+
+  const getPresets = () => {
+    const today = new Date();
+    const fmt = (d) => d.toISOString().split('T')[0];
+    const yesterday = new Date(today); yesterday.setDate(today.getDate() - 1);
+    const monday = new Date(today); monday.setDate(today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1));
+    const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+    const thirtyAgo = new Date(today); thirtyAgo.setDate(today.getDate() - 30);
+    return [
+      { label: 'Hoje', start: fmt(today), end: fmt(today) },
+      { label: 'Ontem', start: fmt(yesterday), end: fmt(yesterday) },
+      { label: 'Esta semana', start: fmt(monday), end: fmt(today) },
+      { label: 'Este mês', start: fmt(monthStart), end: fmt(today) },
+      { label: 'Últimos 30d', start: fmt(thirtyAgo), end: fmt(today) },
+    ];
+  };
+
   return (
     <form className="filter-card fade-up" onSubmit={applyFilter}>
       <h2>Filtro de período</h2>
+
+      {/* Presets de data rápidos */}
+      <div className="date-presets">
+        {getPresets().map((p) => (
+          <button
+            key={p.label}
+            type="button"
+            className={`date-preset-btn ${startDateInput === p.start && endDateInput === p.end ? 'date-preset-btn--active' : ''}`}
+            onClick={() => applyPreset(p.start, p.end)}
+            disabled={disabled}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
 
       <div className="filter-grid">
         <label>
@@ -203,7 +248,7 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
           </div>
 
           {/* Tags selecionadas */}
-          {selectedCustomerIds.length > 0 && (
+          {selectedCustomerIds.length > 0 && selectedCustomerIds.length <= 4 && (
             <div className="selected-tags">
               {selectedCustomerIds.map((id) => {
                 const sub = getSubacquirerById(id);
@@ -219,6 +264,22 @@ function DateRangeFilter({ range, onApply, onCancel, disabled, loading }) {
                   </span>
                 );
               })}
+            </div>
+          )}
+
+          {/* Resumo compacto quando muitos selecionados */}
+          {selectedCustomerIds.length > 4 && (
+            <div className="selected-summary">
+              <span className="selected-summary__badge">
+                ✓ {selectedCustomerIds.length} customers selecionados
+              </span>
+              <button
+                type="button"
+                className="selected-summary__clear"
+                onClick={clearSelected}
+              >
+                Limpar tudo
+              </button>
             </div>
           )}
 

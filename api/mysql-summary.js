@@ -93,7 +93,13 @@ export default async function handler(req, res) {
   }
 
   // Usuário autenticado — prosseguir com a consulta
-  const { customerId, startDate, endDate } = req.body || {};
+  const { customerId } = req.body || {};
+
+  // Normaliza datas: startDate 00:00:00, endDate 23:59:59
+  const rawStart = String(req.body?.startDate || '').trim().slice(0, 10);
+  const rawEnd = String(req.body?.endDate || '').trim().slice(0, 10);
+  const startDate = rawStart ? `${rawStart} 00:00:00` : null;
+  const endDate = rawEnd ? `${rawEnd} 23:59:59.999` : null;
 
   let query = `SELECT
     t.customers_id,
@@ -107,7 +113,7 @@ export default async function handler(req, res) {
     query += ' AND t.customers_id = ?';
     params.push(customerId);
   }
-  if (startDate !== undefined && endDate !== undefined && startDate !== null && endDate !== null) {
+  if (startDate && endDate) {
     query += ' AND t.start_date BETWEEN ? AND ?';
     params.push(startDate, endDate);
   }

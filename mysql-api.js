@@ -16,8 +16,19 @@ const dbConfig = {
   database: 'ebdb',
 };
 
+// Normaliza datas para garantir 00:00:00 no início e 23:59:59 no fim
+function normalizeDateRange(start, end) {
+  const s = String(start || '').trim().slice(0, 10); // pega só YYYY-MM-DD
+  const e = String(end || '').trim().slice(0, 10);
+  return {
+    startDate: s ? `${s} 00:00:00` : null,
+    endDate: e ? `${e} 23:59:59.999` : null,
+  };
+}
+
 app.post('/api/mysql-summary', async (req, res) => {
-  const { customerId, startDate, endDate } = req.body;
+  const { customerId } = req.body;
+  const { startDate, endDate } = normalizeDateRange(req.body.startDate, req.body.endDate);
 
   let query = `SELECT
     t.customers_id,
@@ -31,7 +42,7 @@ app.post('/api/mysql-summary', async (req, res) => {
     query += ' AND t.customers_id = ?';
     params.push(customerId);
   }
-  if (startDate !== undefined && endDate !== undefined && startDate !== null && endDate !== null) {
+  if (startDate && endDate) {
     query += ' AND t.start_date BETWEEN ? AND ?';
     params.push(startDate, endDate);
   }

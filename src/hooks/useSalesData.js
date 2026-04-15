@@ -10,7 +10,7 @@ function formatDateRange(date, isEnd = false) {
   const yyyy = d.getFullYear();
   const mm = String(d.getMonth() + 1).padStart(2, '0');
   const dd = String(d.getDate()).padStart(2, '0');
-  return `${yyyy}-${mm}-${dd} ${isEnd ? '23:59:59' : '00:00:00'}`;
+  return `${yyyy}-${mm}-${dd} ${isEnd ? '23:59:59.999' : '00:00:00'}`;
 }
 
 const BATCH_SIZE = 10;

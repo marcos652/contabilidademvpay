@@ -37,7 +37,7 @@ function LoginPage() {
           <img
             src={LOGO_BASE64}
             alt="MovingPay"
-            style={{ width: '56px', height: '56px', objectFit: 'contain', marginBottom: '8px' }}
+            style={{ height: '80px', width: 'auto', objectFit: 'contain', marginBottom: '12px' }}
           />
           <p className="eyebrow" style={{ fontSize: '0.68rem', letterSpacing: '0.22em' }}>MovingPay</p>
           <h2 style={{ marginTop: '6px' }}>Acesso ao painel</h2>

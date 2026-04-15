@@ -114,7 +114,13 @@ export default async function handler(req, res) {
     });
   }
 
-  const { customerId, startDate, endDate } = req.body || {};
+  const { customerId } = req.body || {};
+
+  // Normaliza datas: startDate 00:00:00, endDate 23:59:59
+  const rawStart = String(req.body?.startDate || '').trim().slice(0, 10);
+  const rawEnd = String(req.body?.endDate || '').trim().slice(0, 10);
+  const startDate = rawStart ? `${rawStart} 00:00:00` : null;
+  const endDate = rawEnd ? `${rawEnd} 23:59:59.999` : null;
 
   try {
     // 1. Gerar token com customer header
